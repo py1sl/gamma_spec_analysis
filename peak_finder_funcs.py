@@ -8,6 +8,11 @@
 # In[ ]:
 
 
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import gs_analysis as ga
+
 def sp_peak_finder(x, prominence, wlen):
 
     sf = ga.five_point_smooth(x)
