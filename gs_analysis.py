@@ -260,8 +260,7 @@ def get_spect(path):
     return counts, ebins
 
 def peak_finder(x, prominence, wlen):
-    """ Identifies the peaks and returns their index
-    """
+    """ Identifies the peaks and returns their index """
 
     sf = five_point_smooth(x)
     smooth = np.array(sf)
@@ -272,8 +271,7 @@ def peak_finder(x, prominence, wlen):
     return(smooth2, peaks)
 
 def peak_identifier(smooth_counts, ebins, peaks):
-    """ Plots the smoothed spectra and highlights the peaks on the plot
-    """
+    """ Plots the smoothed spectra and highlights the peaks on the plot """
     
     plt.plot(ebins[peaks], smooth_counts[peaks], "xr"); plt.plot(ebins, smooth_counts)
     plt.xlabel('ebins')
