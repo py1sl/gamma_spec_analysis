@@ -22,14 +22,14 @@ class read_test_case(unittest.TestCase):
         self.assertEqual(len(e_data), 2)
         self.assertEqual(e_data[0], 0.323476)
         self.assertEqual(e_data[1], 0.365473)
-        
+
     def test_get_counts(self):
         data = gs.read_file("../test_data/Ba_133_raised_1.Spe")
         counts = gs.get_counts(data)
         self.assertEqual(len(counts), 8192)
         self.assertEqual(counts[0], 0)
         self.assertEqual(counts[-1], 0)
-        
+
     def test_get_spec(self):
         counts, ebins = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
         self.assertEqual(len(counts), len(ebins))
