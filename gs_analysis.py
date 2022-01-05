@@ -24,7 +24,7 @@ def read_file(path):
     return lines
 
 
-def plot_spec(counts, erg=None, peaks=None):
+def plot_spec(counts, erg=None, fname=None):
     """simple plotting routine for spectra"""
     counts = np.array(counts).astype(int)
     plt.clf()
@@ -33,16 +33,14 @@ def plot_spec(counts, erg=None, peaks=None):
         x = np.arange(len(counts))
     else:
         x = erg
-
-    """
-    if peaks is not None:
-        for xc in peaks:
-            plt.axvline(x=xc, color='r')
-    """
-
+        
     plt.yscale("log")
     plt.step(x, counts)
-    plt.show
+    
+    if fname:
+        plt.savefig(fname)
+    else:
+        plt.show()
 
 
 def get_counts(line_data):
@@ -93,7 +91,10 @@ def generate_ebins(lines, nbins):
     e_co_effs = get_e_fit(lines)
 
     x = np.arange(nbins)
-    ebins = e_co_effs[0] + x * e_co_effs[1]
+    if len(e_co_effs) == 2:
+        ebins = e_co_effs[0] + x * e_co_effs[1]
+    else:
+        raise ValueError("The selected energy co-eff array is not valid")
 
     return ebins
 
@@ -124,7 +125,7 @@ def five_point_smooth(counts):
     smooth_spec.append(counts[i])
     smooth_spec.append(counts[i + 1])
 
-    return smooth_spec
+    return np.array(smooth_spec)
 
 
 def find_energy_pos(ebins, erg):
@@ -267,23 +268,25 @@ def peak_finder(x, prominence, wlen):
     """Identifies the peaks and returns their index"""
 
     sf = five_point_smooth(x)
-    smooth = np.array(sf)
-    sf2 = five_point_smooth(smooth)
-    smooth2 = np.array(sf2)
+    sf2 = five_point_smooth(sf)
     peaks, _ = find_peaks(sf2, prominence=prominence, wlen=wlen)
 
-    return (smooth2, peaks)
+    return (sf2, peaks)
 
 
-def peak_identifier(smooth_counts, ebins, peaks):
-    """Plots the smoothed spectra and highlights the peaks on the plot"""
+def plot_spect_peaks(smooth_counts, ebins, peaks, fname=None):
+    """Plots the spectra and highlights the peaks on the plot"""
 
     plt.plot(ebins[peaks], smooth_counts[peaks], "xr")
     plt.plot(ebins, smooth_counts)
     plt.xlabel("ebins")
     plt.ylabel("counts")
     plt.yscale("log")
-    plt.show
+    
+    if fname:
+        plt.savefig(fname)
+    else:
+        plt.show()
 
 
 def peak_counts(peaks, index, smooth_counts, ebins):
