@@ -33,10 +33,10 @@ def plot_spec(counts, erg=None, fname=None):
         x = np.arange(len(counts))
     else:
         x = erg
-        
+
     plt.yscale("log")
     plt.step(x, counts)
-    
+
     if fname:
         plt.savefig(fname)
     else:
@@ -286,7 +286,7 @@ def plot_spect_peaks(smooth_counts, ebins, peaks, fname=None):
     plt.xlabel("ebins")
     plt.ylabel("counts")
     plt.yscale("log")
-    
+
     if fname:
         plt.savefig(fname)
     else:
