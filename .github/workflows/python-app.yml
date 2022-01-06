@@ -37,4 +37,5 @@ jobs:
       run: |
         pwd
         export PYTHONPATH=$PYTHONPATH:$(pwd)
+        cd tests
         pytest
