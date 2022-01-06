@@ -240,7 +240,7 @@ def get_peak_roi(peak_pos, counts, ebins, offset=10):
         raise ValueError("cannot extract channel below 0, reduce offset")
     if (peak_pos + offset) >= len(counts):
         raise ValueError("cannot extract channel beyond spec length")
-    
+
     y = counts[peak_pos - offset : peak_pos + offset]
     x = ebins[peak_pos - offset : peak_pos + offset]
 

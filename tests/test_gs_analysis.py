@@ -29,7 +29,7 @@ class analysis_test_case(unittest.TestCase):
     def test_ebins(self):
         data, ebins = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
         self.assertEqual(len(ebins), 8192)
-        
+
         # testing find e pos
         ebins = [1, 2, 3, 4, 5]
         self.assertEqual(gs.find_energy_pos(ebins, 1.5), 0)
@@ -50,7 +50,7 @@ class analysis_test_case(unittest.TestCase):
 
     def test_eff_fit(self):
         self.assertRaises(ValueError, gs.calc_e_eff, 1.3, [1, 1, 1, 1], 5)
-         
+
 
 if __name__ == "__main__":
     unittest.main()
