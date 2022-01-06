@@ -134,7 +134,7 @@ def find_energy_pos(ebins, erg):
     ebins is numpy array of energy bins
     erg is energy value in same units as ebins (usually keV)
     """
-    for i, energy in enumerate(ebins):
+    for i, energy in enumerate(ebins[:-1]):
         if erg >= energy and erg < ebins[i + 1]:
             return i
 
@@ -172,7 +172,6 @@ def calc_e_eff(energy, eff_coeff, eff_fit=1):
         eff = np.exp(log_eff)
     else:
         raise ValueError("The selected eff_fit is not valid")
-        eff = 0
 
     return eff
 
@@ -199,7 +198,7 @@ def calc_bg(spec, c1, c2, m=1):
         high_sum = sum(spec[c2 : c2 + 2])
         bg = (low_sum + high_sum) * ((c2 - c1 + 1) / 6)
     else:
-        raise ValueError("m is not set to a valud method id")
+        raise ValueError("m is not set to a valid method id")
 
     return bg
 
@@ -237,6 +236,11 @@ def get_peak_roi(peak_pos, counts, ebins, offset=10):
     number of channels extracted is 2 x offset
     returns both the counts and energy bin values for that region
     """
+    if (peak_pos - offset) < 0:
+        raise ValueError("cannot extract channel below 0, reduce offset")
+    if (peak_pos + offset) >= len(counts):
+        raise ValueError("cannot extract channel beyond spec length")
+    
     y = counts[peak_pos - offset : peak_pos + offset]
     x = ebins[peak_pos - offset : peak_pos + offset]
 
@@ -247,7 +251,7 @@ def fit_peak(x, y):
     """fits a peak to a gaussian"""
     mean = sum(x * y) / sum(y)
     sigma = sum(y * (x - mean) ** 2) / sum(y)
-    popt, pcov = curve_fit(gaussian, x, y, p0=[1, mean, sigma])
+    popt, pcov = curve_fit(gaussian, x, y, p0=[1, mean, sigma], maxfev=10000)
 
     return popt
 
@@ -276,7 +280,7 @@ def peak_finder(x, prominence, wlen):
 
 def plot_spect_peaks(smooth_counts, ebins, peaks, fname=None):
     """Plots the spectra and highlights the peaks on the plot"""
-
+    plt.clf()
     plt.plot(ebins[peaks], smooth_counts[peaks], "xr")
     plt.plot(ebins, smooth_counts)
     plt.xlabel("ebins")
