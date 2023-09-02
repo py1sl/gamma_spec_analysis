@@ -225,7 +225,7 @@ def net_counts(spec, c1, c2, m=1):
 
 def gaussian(x, a, x0, sigma):
     """gaussian used for curve fitting"""
-    return a * np.exp(-((x - x0) ** 2) / (2 * sigma ** 2))
+    return a * np.exp(-((x - x0) ** 2) / (2 * sigma**2))
 
 
 def get_peak_roi(peak_pos, counts, ebins, offset=10):

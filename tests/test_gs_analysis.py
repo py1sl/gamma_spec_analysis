@@ -6,7 +6,6 @@ class analysis_test_case(unittest.TestCase):
     """tests for analysis functions"""
 
     def test_counts(self):
-
         # gross counts
         counts = [1, 1, 1, 1, 1]
         gc = gs.gross_count(counts, 1, 4)
