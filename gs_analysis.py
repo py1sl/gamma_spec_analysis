@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 """
-Created on Wed Feb 26 09:34:37 2020
-
-@author: gai72996
  gamma spectrum analysis
 """
 
@@ -260,7 +257,6 @@ def get_spect(path):
     """gets  a spectrum
     returns the counts and the ebins
     """
-
     lines = read_file(path)
     counts = get_counts(lines)
     ebins = generate_ebins(lines, len(counts))
@@ -270,7 +266,6 @@ def get_spect(path):
 
 def peak_finder(x, prominence, wlen):
     """Identifies the peaks and returns their index"""
-
     sf = five_point_smooth(x)
     sf2 = five_point_smooth(sf)
     peaks, _ = find_peaks(sf2, prominence=prominence, wlen=wlen)
