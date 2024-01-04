@@ -18,27 +18,29 @@ def read_file(path):
 
 
 def check_file_type(path):
-    """ check which type of format file"""
+    """check which type of format file"""
     lines = read_file(path)
-    
-    
+
+
 def read_dollar_spe(path):
-    """ read an ascii $spe format file"""
+    """read an ascii $spe format file"""
     lines = read_file(path)
     counts = get_counts(lines)
     live_time = get_live_time(lines)
     real_time = get_real_time(lines)
     e_fit_co_eff = get_e_fit(lines)
-    
-    spec = PhSpectrum(counts=counts, 
-                      live_time=live_time, 
-                      real_time=real_time, 
-                      efit_co_eff=e_fit_co_eff,
-                      file_path=path)
-    
+
+    spec = PhSpectrum(
+        counts=counts,
+        live_time=live_time,
+        real_time=real_time,
+        efit_co_eff=e_fit_co_eff,
+        file_path=path,
+    )
+
     return spec
-    
-    
+
+
 def get_counts(line_data):
     """extracts the counts from the $ spe file"""
     counts = []

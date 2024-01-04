@@ -26,7 +26,6 @@ class analysis_test_case(unittest.TestCase):
         self.assertRaises(ValueError, gs.net_counts, counts, 10, 4)
 
     def test_ebins(self):
-
         # testing find e pos
         ebins = [1, 2, 3, 4, 5]
         self.assertEqual(gs.find_energy_pos(ebins, 1.5), 0)

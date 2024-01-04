@@ -30,5 +30,6 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
         self.assertEqual(counts[0], 0)
         self.assertEqual(counts[-1], 0)
 
+
 if __name__ == "__main__":
     unittest.main()

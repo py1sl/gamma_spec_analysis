@@ -1,4 +1,6 @@
 """ """
+
+
 class PhSpectrum(object):
     """Pulse height spectrum class"""
 
@@ -10,13 +12,13 @@ class PhSpectrum(object):
         channels=None,
         ebin=None,
         counts=None,
-        live_time = None,
-        real_time = None,
-        file_path = "",
-        start_time = None,
-        peaks = None,
-        efit_co_eff = None,
-        eff_fit_co_eff = None,
+        live_time=None,
+        real_time=None,
+        file_path="",
+        start_time=None,
+        peaks=None,
+        efit_co_eff=None,
+        eff_fit_co_eff=None,
     ):
         """Initialise Pulse height Spectrum variables"""
         self.channels = [] if channels is None else channels

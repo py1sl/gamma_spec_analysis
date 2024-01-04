@@ -35,7 +35,7 @@ def generate_ebins(spec):
     """makes the ebins from the energy fit co-efficients"""
     e_co_effs = spec.efit_co_eff
     if spec.num_channels == 0:
-        spec.num_channels = len(spec.counts)    
+        spec.num_channels = len(spec.counts)
     x = np.arange(spec.num_channels)
     if len(e_co_effs) == 2:
         ebins = e_co_effs[0] + x * e_co_effs[1]
