@@ -8,17 +8,8 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
-
-def read_file(path):
-    """very boring utility function to read a file and create an
-    list with each entry a single line from the file
-    warning: do not use with very large files (Gb +)
-    """
-    with open(path) as f:
-        lines = f.read().splitlines()
-    f.close()
-
-    return lines
+import gs_spe_reading
+import ph_spectrum
 
 
 def plot_spec(counts, erg=None, fname=None):
@@ -40,54 +31,12 @@ def plot_spec(counts, erg=None, fname=None):
         plt.show()
 
 
-def get_counts(line_data):
-    """extracts the counts from the $ spe file"""
-    counts = []
-    for i, line in enumerate(line_data):
-        if line == "$DATA:":
-            startpoint = i + 2
-
-            nchannels = line_data[i + 1]
-            nchannels = nchannels.split()[-1]
-
-            counts = line_data[startpoint : (startpoint + 1 + int(nchannels))]
-
-    counts = np.array(counts).astype(int)
-    return counts
-
-
-def get_live_time(line_data):
-    """extracts the live time from the $ spe file"""
-    for i, line in enumerate(line_data):
-        if line == "$MEAS_TIM:":
-            live_time = line_data[i + 1]
-            live_time = live_time.split()[0]
-    return float(live_time)
-
-
-def get_real_time(line_data):
-    """extracts the real time from the $ spe file"""
-    for i, line in enumerate(line_data):
-        if line == "$MEAS_TIM:":
-            real_time = line_data[i + 1]
-            real_time = real_time.split()[-1]
-    return float(real_time)
-
-
-def get_e_fit(line_data):
-    """extracts the energy fit co-efficients from the $ spe file"""
-    for i, line in enumerate(line_data):
-        if line == "$ENER_FIT:":
-            efit = line_data[i + 1]
-            efit = efit.split()
-    return np.array(efit).astype(float)
-
-
-def generate_ebins(lines, nbins):
+def generate_ebins(spec):
     """makes the ebins from the energy fit co-efficients"""
-    e_co_effs = get_e_fit(lines)
-
-    x = np.arange(nbins)
+    e_co_effs = spec.efit_co_eff
+    if spec.num_channels == 0:
+        spec.num_channels = len(spec.counts)    
+    x = np.arange(spec.num_channels)
     if len(e_co_effs) == 2:
         ebins = e_co_effs[0] + x * e_co_effs[1]
     else:
@@ -173,7 +122,7 @@ def calc_e_eff(energy, eff_coeff, eff_fit=1):
     return eff
 
 
-def calc_bg(spec, c1, c2, m=1):
+def calc_bg(counts, c1, c2, m=1):
     """Returns background under a peak
     spec is an numpy array of the counts values
     c1 is channel number of the start of peak
@@ -187,12 +136,12 @@ def calc_bg(spec, c1, c2, m=1):
         raise ValueError("c1 must be less than c2")
     if c1 < 0:
         raise ValueError("c1 must be positive number above 0")
-    if c2 > len(spec):
+    if c2 > len(counts):
         raise ValueError("c2 must be less than max number of channels")
 
     if m == 1:
-        low_sum = sum(spec[c1 - 2 : c1])
-        high_sum = sum(spec[c2 : c2 + 2])
+        low_sum = sum(counts[c1 - 2 : c1])
+        high_sum = sum(counts[c2 : c2 + 2])
         bg = (low_sum + high_sum) * ((c2 - c1 + 1) / 6)
     else:
         raise ValueError("m is not set to a valid method id")
@@ -200,7 +149,7 @@ def calc_bg(spec, c1, c2, m=1):
     return bg
 
 
-def gross_count(spec, c1, c2):
+def gross_count(counts, c1, c2):
     """Returns total number of counts in a spectrum between two channels"""
 
     # check channels are appropraite
@@ -208,17 +157,17 @@ def gross_count(spec, c1, c2):
         raise ValueError("c1 must be less than c2")
     if c1 < 0:
         raise ValueError("c1 must be positive number above 0")
-    if c2 > len(spec):
+    if c2 > len(counts):
         raise ValueError("c2 must be less than max number of channels")
 
-    gc = sum(spec[c1:c2])
+    gc = sum(counts[c1:c2])
     return gc
 
 
-def net_counts(spec, c1, c2, m=1):
+def net_counts(counts, c1, c2, m=1):
     """Calculates net counts between two channels"""
-    bg = calc_bg(spec, c1, c2, m)
-    gc = gross_count(spec, c1, c2)
+    bg = calc_bg(counts, c1, c2, m)
+    gc = gross_count(counts, c1, c2)
     nc = gc - bg
     return nc
 
@@ -257,11 +206,9 @@ def get_spect(path):
     """gets  a spectrum
     returns the counts and the ebins
     """
-    lines = read_file(path)
-    counts = get_counts(lines)
-    ebins = generate_ebins(lines, len(counts))
+    spec = gs_spe_reading.read_dollar_spe(path)
 
-    return counts, ebins
+    return spec
 
 
 def peak_finder(x, prominence, wlen):
