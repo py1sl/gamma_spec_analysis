@@ -35,7 +35,12 @@ class analysis_test_case(unittest.TestCase):
         self.assertFalse(gs.find_energy_pos(ebins, 5))
         self.assertFalse(gs.find_energy_pos(ebins, 10))
         self.assertFalse(gs.find_energy_pos(ebins, 0))
-
+        
+        # generating ebins
+        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        ebins = gs.generate_ebins(spec)
+        self.assertEqual(len(ebins), len(spec.counts))
+        
     def test_roi(self):
         spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
         ebins = gs.generate_ebins(spec)
@@ -47,6 +52,14 @@ class analysis_test_case(unittest.TestCase):
 
     def test_eff_fit(self):
         self.assertRaises(ValueError, gs.calc_e_eff, 1.3, [1, 1, 1, 1], 5)
+        
+    def test_smoothing(self):
+        # testing 5 point smooth
+        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        smoothed = gs.five_point_smooth(spec.counts)
+        self.assertEqual(len(smoothed), len(spec.counts))
+        self.assertEqual(smoothed[0], spec.counts[0])
+        self.assertEqual(smoothed[-1], spec.counts[-1])
 
 
 if __name__ == "__main__":
