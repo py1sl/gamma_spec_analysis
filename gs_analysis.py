@@ -34,13 +34,13 @@ def plot_spec(counts, erg=None, fname=None):
 def generate_ebins(spec):
     """generate the energy bins boundaries from the energy fit co-efficients"""
     e_co_effs = spec.efit_co_eff
-    
+
     # ensure spec num_channels is set
     if spec.num_channels == 0:
         spec.num_channels = len(spec.counts)
-        
+
     x = np.arange(spec.num_channels)
-    
+
     # check validity of the co-efficients array
     if len(e_co_effs) == 2:
         ebins = e_co_effs[0] + x * e_co_effs[1]
@@ -59,14 +59,14 @@ def five_point_smooth(counts):
     """
     if len(counts) < 5:
         raise ValueError("Input array must have at least 5 elements for smoothing.")
-    
+
     smooth_spec = []
-    
+
     # first 2 elements
     smooth_spec.extend(counts[:2])
 
     # smooth middle elements
-    for i in range(2, len(counts)-2):
+    for i in range(2, len(counts) - 2):
         val = (1.0 / 9.0) * (
             counts[i - 2]
             + counts[i + 2]
@@ -75,7 +75,7 @@ def five_point_smooth(counts):
             + (3 * counts[i])
         )
         smooth_spec.append(val)
-    # last two elements    
+    # last two elements
     smooth_spec.extend(counts[-2:])
 
     return np.array(smooth_spec)
