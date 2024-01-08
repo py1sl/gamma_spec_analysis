@@ -32,11 +32,16 @@ def plot_spec(counts, erg=None, fname=None):
 
 
 def generate_ebins(spec):
-    """makes the ebins from the energy fit co-efficients"""
+    """generate the energy bins boundaries from the energy fit co-efficients"""
     e_co_effs = spec.efit_co_eff
+    
+    # ensure spec num_channels is set
     if spec.num_channels == 0:
         spec.num_channels = len(spec.counts)
+        
     x = np.arange(spec.num_channels)
+    
+    # check validity of the co-efficients array
     if len(e_co_effs) == 2:
         ebins = e_co_effs[0] + x * e_co_effs[1]
     else:
@@ -52,13 +57,16 @@ def five_point_smooth(counts):
     Parameters
     ----------
     """
+    if len(counts) < 5:
+        raise ValueError("Input array must have at least 5 elements for smoothing.")
+    
     smooth_spec = []
-    smooth_spec.append(counts[0])
-    smooth_spec.append(counts[1])
+    
+    # first 2 elements
+    smooth_spec.extend(counts[:2])
 
-    spec_len = len(counts)
-    i = 2
-    while i < spec_len - 2:
+    # smooth middle elements
+    for i in range(2, len(counts)-2):
         val = (1.0 / 9.0) * (
             counts[i - 2]
             + counts[i + 2]
@@ -67,9 +75,8 @@ def five_point_smooth(counts):
             + (3 * counts[i])
         )
         smooth_spec.append(val)
-        i = i + 1
-    smooth_spec.append(counts[i])
-    smooth_spec.append(counts[i + 1])
+    # last two elements    
+    smooth_spec.extend(counts[-2:])
 
     return np.array(smooth_spec)
 
@@ -84,7 +91,7 @@ def find_energy_pos(ebins, erg):
         if erg >= energy and erg < ebins[i + 1]:
             return i
 
-    return False
+    return None
 
 
 def calc_e_eff(energy, eff_coeff, eff_fit=1):
@@ -100,24 +107,18 @@ def calc_e_eff(energy, eff_coeff, eff_fit=1):
     # eff_fit used to choose between calibration fit eqns
     # energy to be in MeV
 
-    if eff_fit == 1:
-        # eff_fit 1 uses series ao + a1(lnE)^1+ a2(lnE)^2+ ....
-        log_eff = eff_coeff[0]
-        i = 1
-        while i < len(eff_coeff):
-            log_eff = log_eff + (eff_coeff[i] * (np.power(np.log(energy), i)))
-            i = i + 1
-        eff = np.exp(log_eff)
-    elif eff_fit == 2:
-        # eff_fit 2 uses series a0 + a1(1/E)^1 + a2(1/E)^2+...
-        log_eff = eff_coeff[0]
-        i = 1
-        while i < len(eff_coeff):
-            log_eff = log_eff + (eff_coeff[i] * ((1 / energy) ** i))
-            i = i + 1
-        eff = np.exp(log_eff)
-    else:
+    if eff_fit not in {1, 2}:
         raise ValueError("The selected eff_fit is not valid")
+
+    log_eff = eff_coeff[0]
+
+    for i in range(1, len(eff_coeff)):
+        if eff_fit == 1:
+            log_eff += eff_coeff[i] * np.power(np.log(energy), i)
+        elif eff_fit == 2:
+            log_eff += eff_coeff[i] * np.power(1 / energy, i)
+
+    eff = np.exp(log_eff)
 
     return eff
 
@@ -196,8 +197,12 @@ def get_peak_roi(peak_pos, counts, ebins, offset=10):
 def fit_peak(x, y):
     """fits a peak to a gaussian"""
     mean = sum(x * y) / sum(y)
-    sigma = sum(y * (x - mean) ** 2) / sum(y)
-    popt, pcov = curve_fit(gaussian, x, y, p0=[1, mean, sigma], maxfev=10000)
+    sigma = np.sqrt(sum(y * (x - mean) ** 2) / sum(y))
+    try:
+        popt, pcov = curve_fit(gaussian, x, y, p0=[max(y), mean, sigma], maxfev=10000)
+    except OptimizeWarning as e:
+        print(f"Warning: {e}")
+        popt = [np.nan, np.nan, np.nan]
 
     return popt
 
