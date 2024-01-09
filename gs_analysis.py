@@ -132,7 +132,7 @@ def calc_bg(counts, c1, c2, m=1):
     m == 1 is a simple trapesium background from Maestro
     """
 
-    if check_channel_validity(c1, c2):
+    if check_channel_validity(c1, c2, counts):
         if m == 1:
             low_sum = sum(counts[c1 - 2 : c1])
             high_sum = sum(counts[c2 : c2 + 2])
@@ -145,12 +145,12 @@ def calc_bg(counts, c1, c2, m=1):
 
 def gross_count(counts, c1, c2):
     """Returns total number of counts in a spectrum between two channels"""
-    if check_channel_validity(c1, c2):
+    if check_channel_validity(c1, c2, counts):
         return sum(counts[c1:c2])
     return 0
 
 
-def check_channel_validity(c1, c2):
+def check_channel_validity(c1, c2, counts):
     """checks validity of the channel range"""
     # check channel bounds are valid
     if c1 > c2:
