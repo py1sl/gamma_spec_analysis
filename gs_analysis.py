@@ -132,37 +132,34 @@ def calc_bg(counts, c1, c2, m=1):
     m == 1 is a simple trapesium background from Maestro
     """
 
-    # check channels are appropraite
-    if c1 > c2:
-        raise ValueError("c1 must be less than c2")
-    if c1 < 0:
-        raise ValueError("c1 must be positive number above 0")
-    if c2 > len(counts):
-        raise ValueError("c2 must be less than max number of channels")
-
-    if m == 1:
-        low_sum = sum(counts[c1 - 2 : c1])
-        high_sum = sum(counts[c2 : c2 + 2])
-        bg = (low_sum + high_sum) * ((c2 - c1 + 1) / 6)
-    else:
-        raise ValueError("m is not set to a valid method id")
+    if check_channel_validity(c1, c2, counts):
+        if m == 1:
+            low_sum = sum(counts[c1 - 2 : c1])
+            high_sum = sum(counts[c2 : c2 + 2])
+            bg = (low_sum + high_sum) * ((c2 - c1 + 1) / 6)
+        else:
+            raise ValueError("m is not set to a valid method id")
 
     return bg
 
 
 def gross_count(counts, c1, c2):
     """Returns total number of counts in a spectrum between two channels"""
+    if check_channel_validity(c1, c2, counts):
+        return sum(counts[c1:c2])
+    return 0
 
-    # check channels are appropraite
+
+def check_channel_validity(c1, c2, counts):
+    """checks validity of the channel range"""
+    # check channel bounds are valid
     if c1 > c2:
         raise ValueError("c1 must be less than c2")
     if c1 < 0:
         raise ValueError("c1 must be positive number above 0")
     if c2 > len(counts):
         raise ValueError("c2 must be less than max number of channels")
-
-    gc = sum(counts[c1:c2])
-    return gc
+    return True
 
 
 def net_counts(counts, c1, c2, m=1):
@@ -198,11 +195,8 @@ def fit_peak(x, y):
     """fits a peak to a gaussian"""
     mean = sum(x * y) / sum(y)
     sigma = np.sqrt(sum(y * (x - mean) ** 2) / sum(y))
-    try:
-        popt, pcov = curve_fit(gaussian, x, y, p0=[max(y), mean, sigma], maxfev=10000)
-    except OptimizeWarning as e:
-        print(f"Warning: {e}")
-        popt = [np.nan, np.nan, np.nan]
+
+    popt, pcov = curve_fit(gaussian, x, y, p0=[max(y), mean, sigma], maxfev=10000)
 
     return popt
 

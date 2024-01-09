@@ -1,4 +1,7 @@
 import unittest
+from unittest.mock import patch, mock_open, call
+import numpy as np
+import matplotlib.pyplot as plt
 import gs_analysis as gs
 
 
@@ -60,6 +63,48 @@ class analysis_test_case(unittest.TestCase):
         self.assertEqual(len(smoothed), len(spec.counts))
         self.assertEqual(smoothed[0], spec.counts[0])
         self.assertEqual(smoothed[-1], spec.counts[-1])
+
+
+class TestPlotting(unittest.TestCase):
+    @patch("matplotlib.pyplot.savefig")
+    @patch("matplotlib.pyplot.show")
+    def test_plot_spec(self, mock_show, mock_savefig):
+        counts = [1, 10, 100, 1000]
+        erg = [1, 2, 3, 4]
+        fname = "test_plot.png"
+
+        # called with just counts
+        gs.plot_spec(counts)
+        # Assert that show was called
+        mock_show.assert_called_once()
+
+        # called with counts and energy
+        gs.plot_spec(counts, erg=erg)
+        # Assert that show was called
+        mock_show.assert_called_once()
+
+        # called with a file name
+        gs.plot_spec(counts, fname=fname)
+        # Assert that savefig was called with the specified filename
+        mock_savefig.assert_called_once_with(fname)
+
+    @patch("matplotlib.pyplot.savefig")
+    @patch("matplotlib.pyplot.show")
+    def test_plot_spect_peaks(self, mock_show, mock_savefig):
+        counts = [1, 10, 100, 1000]
+        erg = [1, 2, 3, 4]
+        peaks = [3]
+        fname = "test_plot.png"
+
+        # called with data
+        gs.plot_spect_peaks(counts, erg, peaks)
+        # Assert that show was called
+        mock_show.assert_called_once()
+
+        # called with data and fname
+        gs.plot_spect_peaks(counts, erg, peaks, fname)
+        # Assert that show was called
+        mock_savefig.assert_called_once_with(fname)
 
 
 if __name__ == "__main__":
