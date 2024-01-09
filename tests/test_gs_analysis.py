@@ -87,7 +87,7 @@ class TestPlotting(unittest.TestCase):
         gs.plot_spec(counts, fname=fname)
         # Assert that savefig was called with the specified filename
         mock_savefig.assert_called_once_with(fname)
-   
+
     @patch("matplotlib.pyplot.savefig")
     @patch("matplotlib.pyplot.show")
     def test_plot_spect_peaks(self, mock_show, mock_savefig):
