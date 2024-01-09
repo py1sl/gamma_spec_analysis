@@ -74,21 +74,21 @@ class TestPlotting(unittest.TestCase):
         fname = "test_plot.png"
 
         # called with just counts
-        plot_spec(counts)
+        gs.plot_spec(counts)
         # Assert that savefig was called
         mock_savefig.assert_called_once_with(None)
         # Assert that show was called
         mock_show.assert_called_once()
 
         # called with counts and energy
-        plot_spec(counts, erg=erg)
+        gs.plot_spec(counts, erg=erg)
         # Assert that savefig was called
         mock_savefig.assert_called_once_with(None)
         # Assert that show was called
         mock_show.assert_called_once()
 
         # called with a file name
-        plot_spec(counts, fname=fname)
+        gs.plot_spec(counts, fname=fname)
         # Assert that savefig was called with the specified filename
         mock_savefig.assert_called_once_with(fname)
 
