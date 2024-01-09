@@ -97,12 +97,12 @@ class TestPlotting(unittest.TestCase):
         fname = "test_plot.png"
 
         # called with data
-        gs.plot_spect_peaks(counts, ebins, peaks)
+        gs.plot_spect_peaks(counts, erg, peaks)
         # Assert that show was called
         mock_show.assert_called_once()
 
         # called with data and fname
-        gs.plot_spect_peaks(counts, ebins, peaks, fname)
+        gs.plot_spect_peaks(counts, erg, peaks, fname)
         # Assert that show was called
         mock_savefig.assert_called_once_with(fname)
 
