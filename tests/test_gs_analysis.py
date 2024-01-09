@@ -66,12 +66,12 @@ class analysis_test_case(unittest.TestCase):
 
 
 class TestPlotting(unittest.TestCase):
-    @patch('matplotlib.pyplot.savefig')
-    @patch('matplotlib.pyplot.show')
+    @patch("matplotlib.pyplot.savefig")
+    @patch("matplotlib.pyplot.show")
     def test_plot_spec(self, mock_show, mock_savefig):
         counts = [1, 10, 100, 1000]
         erg = [1, 2, 3, 4]
-        fname = 'test_plot.png'
+        fname = "test_plot.png"
 
         # called with just counts
         plot_spec(counts)
@@ -91,7 +91,7 @@ class TestPlotting(unittest.TestCase):
         plot_spec(counts, fname=fname)
         # Assert that savefig was called with the specified filename
         mock_savefig.assert_called_once_with(fname)
-        
+
 
 if __name__ == "__main__":
     unittest.main()
