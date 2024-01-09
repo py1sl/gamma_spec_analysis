@@ -151,7 +151,7 @@ def gross_count(counts, c1, c2):
 
 
 def check_channel_validity(c1, c2):
-    """ checks validity of the channel range """ 
+    """checks validity of the channel range"""
     # check channel bounds are valid
     if c1 > c2:
         raise ValueError("c1 must be less than c2")
