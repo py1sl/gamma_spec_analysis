@@ -1,4 +1,7 @@
 import unittest
+from unittest.mock import patch, mock_open, call
+import numpy as np
+import matplotlib.pyplot as plt
 import gs_analysis as gs
 
 
@@ -61,6 +64,44 @@ class analysis_test_case(unittest.TestCase):
         self.assertEqual(smoothed[0], spec.counts[0])
         self.assertEqual(smoothed[-1], spec.counts[-1])
 
+
+class TestPlotSpecFunction(unittest.TestCase):
+    @patch('matplotlib.pyplot.savefig')
+    @patch('matplotlib.pyplot.show')
+    def test_plot_spec_with_counts(self, mock_show, mock_savefig):
+        counts = [1, 10, 100, 1000]
+        
+        plot_spec(counts)
+        
+        # Assert that savefig was called
+        mock_savefig.assert_called_once_with(None)
+        
+        # Assert that show was called
+        mock_show.assert_called_once()
+
+    @patch('matplotlib.pyplot.savefig')
+    @patch('matplotlib.pyplot.show')
+    def test_plot_spec_with_erg(self, mock_show, mock_savefig):
+        counts = [1, 10, 100, 1000]
+        erg = [1, 2, 3, 4]
+        
+        plot_spec(counts, erg=erg)
+        
+        # Assert that savefig was called
+        mock_savefig.assert_called_once_with(None)
+        
+        # Assert that show was called
+        mock_show.assert_called_once()
+
+    @patch('matplotlib.pyplot.savefig')
+    def test_plot_spec_save_to_file(self, mock_savefig):
+        counts = [1, 10, 100, 1000]
+        fname = 'test_plot.png'
+        
+        plot_spec(counts, fname=fname)
+        
+        # Assert that savefig was called with the specified filename
+        mock_savefig.assert_called_once_with(fname
 
 if __name__ == "__main__":
     unittest.main()
