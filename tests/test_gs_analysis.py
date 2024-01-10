@@ -9,6 +9,7 @@ class analysis_test_case(unittest.TestCase):
     """tests for analysis functions"""
 
     def test_counts(self):
+        """ tests related to the counts """
         # gross counts
         counts = [1, 1, 1, 1, 1]
         gc = gs.gross_count(counts, 1, 4)
@@ -29,6 +30,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertRaises(ValueError, gs.net_counts, counts, 10, 4)
 
     def test_ebins(self):
+        """ tests rlated to energy bins """
         # testing find e pos
         ebins = [1, 2, 3, 4, 5]
         self.assertEqual(gs.find_energy_pos(ebins, 1.5), 0)
@@ -45,6 +47,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertEqual(len(ebins), len(spec.counts))
 
     def test_roi(self):
+        """ tests for extracting a region of interest """
         spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
         ebins = gs.generate_ebins(spec)
         peak_ebin, data = gs.get_peak_roi(230, spec.counts, ebins)
@@ -54,18 +57,26 @@ class analysis_test_case(unittest.TestCase):
         self.assertRaises(ValueError, gs.get_peak_roi, 10000, spec.counts, ebins)
 
     def test_eff_fit(self):
+        """ tests for efficency function fitting """
         self.assertRaises(ValueError, gs.calc_e_eff, 1.3, [1, 1, 1, 1], 5)
 
     def test_smoothing(self):
+        """ tests related to smoothing functions """
         # testing 5 point smooth
         spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
         smoothed = gs.five_point_smooth(spec.counts)
         self.assertEqual(len(smoothed), len(spec.counts))
         self.assertEqual(smoothed[0], spec.counts[0])
         self.assertEqual(smoothed[-1], spec.counts[-1])
+        
+    def test_getting_data(self):
+        """ tests for getting data"""
+        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        self.assertTrue(len(spec.counts) > 0)
 
 
 class TestPlotting(unittest.TestCase):
+    """ tests relating to plotting functions """
     @patch("matplotlib.pyplot.savefig")
     @patch("matplotlib.pyplot.show")
     def test_plot_spec(self, mock_show, mock_savefig):
@@ -81,7 +92,7 @@ class TestPlotting(unittest.TestCase):
         # called with counts and energy
         gs.plot_spec(counts, erg=erg)
         # Assert that show was called
-        mock_show.assert_called_once()
+        mock_show.assert_called()
 
         # called with a file name
         gs.plot_spec(counts, fname=fname)

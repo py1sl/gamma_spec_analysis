@@ -210,9 +210,9 @@ def get_spect(path):
     return spec
 
 
-def peak_finder(x, prominence, wlen):
+def peak_finder(counts, prominence, wlen):
     """Identifies the peaks and returns their index"""
-    sf = five_point_smooth(x)
+    sf = five_point_smooth(counts)
     sf2 = five_point_smooth(sf)
     peaks, _ = find_peaks(sf2, prominence=prominence, wlen=wlen)
 
@@ -222,7 +222,8 @@ def peak_finder(x, prominence, wlen):
 def plot_spect_peaks(smooth_counts, ebins, peaks, fname=None):
     """Plots the spectra and highlights the peaks on the plot"""
     plt.clf()
-    plt.plot(ebins[peaks], smooth_counts[peaks], "xr")
+    for peak in peaks:
+        plt.plot(ebins[peak], smooth_counts[peak], "xr")
     plt.plot(ebins, smooth_counts)
     plt.xlabel("ebins")
     plt.ylabel("counts")
