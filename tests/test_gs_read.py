@@ -17,6 +17,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
         data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
         self.assertEqual(gsr.get_live_time(data), 326)
         self.assertEqual(gsr.get_real_time(data), 431)
+        self.assertEqual(gsr.get_start_date(data), "02/25/2020 14:24:52")
 
     def test_get_fits(self):
         """tests related to the energy, efficiency and shape calibration"""

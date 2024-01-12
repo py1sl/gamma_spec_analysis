@@ -29,6 +29,7 @@ def read_dollar_spe(path):
     live_time = get_live_time(lines)
     real_time = get_real_time(lines)
     e_fit_co_eff = get_e_fit(lines)
+    date = get_start_date(lines)
 
     spec = PhSpectrum(
         counts=counts,
@@ -36,6 +37,7 @@ def read_dollar_spe(path):
         real_time=real_time,
         efit_co_eff=e_fit_co_eff,
         file_path=path,
+        start_time = date
     )
 
     return spec
@@ -63,7 +65,8 @@ def get_live_time(line_data):
         if line == "$MEAS_TIM:":
             live_time = line_data[i + 1]
             live_time = live_time.split()[0]
-    return float(live_time)
+            return float(live_time)
+    return None
 
 
 def get_real_time(line_data):
@@ -72,7 +75,18 @@ def get_real_time(line_data):
         if line == "$MEAS_TIM:":
             real_time = line_data[i + 1]
             real_time = real_time.split()[-1]
-    return float(real_time)
+            return float(real_time)
+    return None
+
+    
+def get_start_date(line_data):
+    """extract the measurement start date """
+    for i, line in enumerate(line_data):
+        if line == "$DATE_MEA:":
+            # TODO convert to appropriate date format
+            measurement_date = line_data[i+1]
+            return measurement_date
+    return None
 
 
 def get_e_fit(line_data):
