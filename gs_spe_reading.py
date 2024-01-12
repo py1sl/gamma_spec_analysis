@@ -37,7 +37,7 @@ def read_dollar_spe(path):
         real_time=real_time,
         efit_co_eff=e_fit_co_eff,
         file_path=path,
-        start_time = date
+        start_time=date,
     )
 
     return spec
@@ -78,13 +78,13 @@ def get_real_time(line_data):
             return float(real_time)
     return None
 
-    
+
 def get_start_date(line_data):
-    """extract the measurement start date """
+    """extract the measurement start date"""
     for i, line in enumerate(line_data):
         if line == "$DATE_MEA:":
             # TODO convert to appropriate date format
-            measurement_date = line_data[i+1]
+            measurement_date = line_data[i + 1]
             return measurement_date
     return None
 
