@@ -1,36 +1,45 @@
-""" """
+"""Pulse-height spectrum data model with type annotations."""
+from dataclasses import dataclass, field, asdict
+from typing import List, Optional, Sequence, Union, Any, Dict
+import numpy as np
+import numpy.typing as npt
 
 
-class PhSpectrum(object):
-    """Pulse height spectrum class"""
+@dataclass
+class PhSpectrum:
+    spec_name: str = ""
+    start_chan_num: int = 0
+    num_channels: int = 0
+    channels: List[int] = field(default_factory=list)
+    ebin: Union[List[float], npt.NDArray[np.float64]] = field(default_factory=list)
+    counts: Union[List[int], npt.NDArray[np.int64]] = field(default_factory=list)
+    live_time: Optional[float] = None
+    real_time: Optional[float] = None
+    file_path: str = ""
+    start_time: Optional[str] = None
+    peaks: List[int] = field(default_factory=list)
+    energy_fit_coefficients: Optional[Sequence[float]] = None
+    efficiency_fit_coefficients: Optional[Sequence[float]] = None
+    keywords: Dict[str, Any] = field(default_factory=dict)
 
-    def __init__(
-        self,
-        spec_name="",
-        start_chan_num=0,
-        num_channels=0,
-        channels=None,
-        ebin=None,
-        counts=None,
-        live_time=None,
-        real_time=None,
-        file_path="",
-        start_time=None,
-        peaks=None,
-        efit_co_eff=None,
-        eff_fit_co_eff=None,
-    ):
-        """Initialise Pulse height Spectrum variables"""
-        self.channels = [] if channels is None else channels
-        self.ebin = [] if ebin is None else ebin
-        self.counts = [] if counts is None else counts
-        self.spec_name = spec_name
-        self.start_chan_num = start_chan_num
-        self.num_channels = num_channels
-        self.real_time = real_time
-        self.live_time = live_time
-        self.file_path = file_path
-        self.start_time = start_time
-        self.peaks = [] if peaks is None else peaks
-        self.efit_co_eff = efit_co_eff
-        self.eff_fit_co_eff = eff_fit_co_eff
+    def __post_init__(self) -> None:
+        """Normalize common inputs to numpy arrays and set derived fields."""
+        # Ensure counts is a numpy array of integer type for numeric ops
+        self.counts = np.asarray(self.counts, dtype=np.int64)
+
+        # Set num_channels if not provided and counts present
+        if self.num_channels == 0 and self.counts.size > 0:
+            self.num_channels = int(self.counts.size)
+
+        # Normalize ebin to numpy array (use float dtype)
+        self.ebin = np.asarray(self.ebin, dtype=np.float64) if self.ebin else np.array([], dtype=np.float64)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a JSON-serializable dict (converts ndarrays to lists)."""
+        d = asdict(self)
+        # Convert numpy arrays to lists for serialization
+        if isinstance(self.counts, np.ndarray):
+            d["counts"] = self.counts.tolist()
+        if isinstance(self.ebin, np.ndarray):
+            d["ebin"] = self.ebin.tolist()
+        return d

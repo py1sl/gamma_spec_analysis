@@ -22,7 +22,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
     def test_get_fits(self):
         """tests related to the energy, efficiency and shape calibration"""
         data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
-        e_data = gsr.get_e_fit(data)
+        e_data = gsr.get_energy_fit_coefficients(data)
         self.assertEqual(len(e_data), 2)
         self.assertEqual(e_data[0], 0.323476)
         self.assertEqual(e_data[1], 0.365473)
@@ -35,12 +35,28 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
         self.assertEqual(counts[0], 0)
         self.assertEqual(counts[-1], 0)
 
+    def test_get_dollar_keywords_presence(self):
+        """Ensure expected keywords exist in the real test .Spe file"""
+        data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
+        kws = gsr.get_dollar_keywords(data)
+
+        # expected keywords (adjust if your file uses different tags)
+        self.assertIn("$SPEC_ID", kws)
+        self.assertIn("$DATA", kws)
+        self.assertIn("$MEAS_TIM", kws)
+        self.assertIn("$DATE_MEA", kws)
+        self.assertIn("$ENER_FIT", kws)
+
+        # check some known positions from existing tests
+        self.assertEqual(kws["$SPEC_ID"][0], 0)
+        self.assertGreater(len(kws["$DATA"]), 0)
+
     def test_read_dollar_spe(self):
         """testing the read $ spe function"""
 
         spec = gsr.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
         self.assertEqual(len(spec.counts), 8192)
-        e_data = spec.efit_co_eff
+        e_data = spec.energy_fit_coefficients
         self.assertEqual(len(e_data), 2)
         self.assertEqual(e_data[0], 0.323476)
         self.assertEqual(e_data[1], 0.365473)

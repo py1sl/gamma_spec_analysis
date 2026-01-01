@@ -58,7 +58,7 @@ class analysis_test_case(unittest.TestCase):
 
     def test_eff_fit(self):
         """tests for efficency function fitting"""
-        self.assertRaises(ValueError, gs.calc_e_eff, 1.3, [1, 1, 1, 1], 5)
+        self.assertRaises(ValueError, gs.calc_energy_efficiency, 1.3, [1, 1, 1, 1], 5)
 
     def test_smoothing(self):
         """tests related to smoothing functions"""
@@ -96,6 +96,7 @@ class TestPlotting(unittest.TestCase):
         mock_show.assert_called()
 
         # called with a file name
+        mock_savefig.reset_mock()
         gs.plot_spec(counts, fname=fname)
         # Assert that savefig was called with the specified filename
         mock_savefig.assert_called_once_with(fname)
@@ -114,8 +115,9 @@ class TestPlotting(unittest.TestCase):
         mock_show.assert_called_once()
 
         # called with data and fname
-        gs.plot_spect_peaks(counts, erg, peaks, fname)
+        # Assert that savefig was called with the specified filename
         # Assert that show was called
+        gs.plot_spect_peaks(counts, erg, peaks, fname)
         mock_savefig.assert_called_once_with(fname)
 
 
