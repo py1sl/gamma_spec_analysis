@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
- gamma spectrum analysis
+gamma spectrum analysis
 """
 
 import numpy as np
@@ -16,8 +16,8 @@ import numpy.typing as npt
 
 
 def get_spect(path: str) -> "ph_spectrum.PhSpectrum":
-    """ gets a spectrum
-        returns the counts and the ebins
+    """gets a spectrum
+    returns the counts and the ebins
     """
     spec = gs_spe_reading.read_dollar_spe(path)
     return spec
@@ -43,7 +43,7 @@ def generate_ebins(spec: "ph_spectrum.PhSpectrum") -> npt.NDArray[Any]:
 
 
 def five_point_smooth(
-    counts: Union[Sequence[float], npt.NDArray[Any]]
+    counts: Union[Sequence[float], npt.NDArray[Any]],
 ) -> npt.NDArray[Any]:
     """5 point smoothing function.
     Recommended for use in low statistics in
@@ -123,9 +123,7 @@ def calc_energy_efficiency(
     return eff
 
 
-def calc_bg(
-    counts: npt.NDArray[Any], c1: int, c2: int, m: int = 1
-) -> float:
+def calc_bg(counts: npt.NDArray[Any], c1: int, c2: int, m: int = 1) -> float:
     """Returns background under a peak
     spec is an numpy array of the counts values
     c1 is channel number of the start of peak
@@ -154,15 +152,15 @@ def estimate_background_trapezoid(counts: npt.NDArray[Any], c1: int, c2: int) ->
     # Validate channel indices (will raise if invalid)
     check_channel_validity(c1, c2, counts)
 
-    # Safe low window: 
+    # Safe low window:
     low_start = max(0, c1 - 2)
     low_sum = float(sum(counts[low_start:c1])) if c1 > low_start else 0.0
 
-    # Safe high window: 
+    # Safe high window:
     high_end = min(len(counts), c2 + 2)
     high_sum = float(sum(counts[c2:high_end])) if high_end > c2 else 0.0
 
-    width = (c2 - c1 + 1)
+    width = c2 - c1 + 1
     bg = (low_sum + high_sum) * (width / 6.0)
 
     return float(bg)

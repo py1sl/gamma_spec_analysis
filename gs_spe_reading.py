@@ -1,6 +1,7 @@
 """
- gamma spectrum analysis - spe file reading
+gamma spectrum analysis - spe file reading
 """
+
 from typing import Dict, List, Optional, Sequence
 from ph_spectrum import PhSpectrum
 import numpy as np
@@ -21,7 +22,7 @@ def validate_dollar_spe_file(lines: List[str]) -> None:
     """check if this is a $ spe file"""
     if not any(line.strip().startswith("$SPEC_ID:") for line in lines):
         raise ValueError("This is not a valid $ spe file")
-    
+
 
 def read_dollar_spe(path: str) -> PhSpectrum:
     """read an ascii $spe format file"""
@@ -89,7 +90,9 @@ def get_start_date(line_data):
     return None
 
 
-def get_energy_fit_coefficients(line_data: Sequence[str]) -> Optional[npt.NDArray[np.float64]]:
+def get_energy_fit_coefficients(
+    line_data: Sequence[str],
+) -> Optional[npt.NDArray[np.float64]]:
     """extracts the energy fit co-efficients from the $ spe file"""
     for i, line in enumerate(line_data):
         if line.strip().startswith("$ENER_FIT:"):
@@ -113,7 +116,7 @@ def get_dollar_keywords(line_data: Sequence[str]) -> Dict[str, list]:
         dict mapping the keyword (including the leading '$' and without the trailing spaces,
         e.g. '$DATA') to a list of zero-based line indices where that keyword appears.
     """
-    pattern = re.compile(r'^\s*(\$\w+)\s*:')
+    pattern = re.compile(r"^\s*(\$\w+)\s*:")
     keywords: Dict[str, list] = {}
     for idx, line in enumerate(line_data):
         m = pattern.match(line)
