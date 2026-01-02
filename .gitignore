@@ -143,10 +143,3 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
-
-# Generated plots and outputs
-*.png
-*.pdf
-*.jpg
-*.jpeg
-*.svg
