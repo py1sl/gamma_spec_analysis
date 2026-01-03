@@ -3,6 +3,7 @@ from unittest.mock import patch, mock_open, call
 import numpy as np
 import matplotlib.pyplot as plt
 import gs_analysis as gs
+import ph_spectrum
 
 
 class analysis_test_case(unittest.TestCase):
@@ -47,7 +48,6 @@ class analysis_test_case(unittest.TestCase):
         self.assertEqual(len(ebins), len(spec.counts))
         
         # Test generate_ebins with invalid coefficients (not length 2)
-        import ph_spectrum
         spec_invalid = ph_spectrum.PhSpectrum()
         spec_invalid.energy_fit_coefficients = [1.0, 2.0, 3.0]  # Length 3, should fail
         spec_invalid.num_channels = 10
