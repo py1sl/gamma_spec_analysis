@@ -317,13 +317,17 @@ def mariscotti_peak_finder(
         if len(negative_diffs) > 0:
             mean_neg = np.mean(negative_diffs)
             std_neg = np.std(negative_diffs)
-            # Set threshold at mean - 1*std (less strict for better peak detection)
-            threshold = mean_neg - 1 * std_neg
+            # Set threshold at mean - 1*std for balanced peak detection
+            # Factor of 1.0 provides good balance between sensitivity and noise rejection
+            AUTO_THRESHOLD_FACTOR = 1.0
+            threshold = mean_neg - AUTO_THRESHOLD_FACTOR * std_neg
         else:
             threshold = 0.0
     
     # Find peaks using vectorized operations
     # A peak is where second_diff[i] < threshold and it's a local minimum
+    # Note: Peaks at array boundaries (index 0 or len-1) are not detected
+    # as the second difference and local minimum checks require neighbors
     is_below_threshold = second_diff < threshold
     is_local_min = np.zeros(len(second_diff), dtype=bool)
     is_local_min[1:-1] = ((second_diff[1:-1] < second_diff[:-2]) & 
