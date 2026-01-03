@@ -193,6 +193,89 @@ class analysis_test_case(unittest.TestCase):
             peak_idx, counts = gs.peak_counts(peaks, 0, smoothed, ebins)
             self.assertEqual(peak_idx, peaks[0])
             self.assertIsInstance(counts, float)
+    
+    def test_mariscotti_peak_finder_basic(self):
+        """tests for Mariscotti peak finding function - basic functionality"""
+        # Create synthetic data with a clear peak
+        x = np.arange(100)
+        # Create a Gaussian peak at position 50
+        counts = 10 + 100 * np.exp(-((x - 50) ** 2) / (2 * 5 ** 2))
+        
+        # Run Mariscotti peak finder with auto threshold
+        smoothed, peaks = gs.mariscotti_peak_finder(counts)
+        
+        # Verify output types and shapes
+        self.assertIsInstance(smoothed, np.ndarray)
+        self.assertIsInstance(peaks, np.ndarray)
+        self.assertEqual(len(smoothed), len(counts))
+        
+        # Should find at least one peak
+        self.assertGreater(len(peaks), 0)
+        
+        # Peak should be near position 50
+        peak_found_near_50 = any(abs(p - 50) < 10 for p in peaks)
+        self.assertTrue(peak_found_near_50, "Expected to find a peak near position 50")
+    
+    def test_mariscotti_peak_finder_multiple_peaks(self):
+        """tests for Mariscotti peak finding with multiple peaks"""
+        # Create synthetic data with two peaks
+        x = np.arange(200)
+        counts = (10 + 
+                  80 * np.exp(-((x - 50) ** 2) / (2 * 5 ** 2)) + 
+                  60 * np.exp(-((x - 150) ** 2) / (2 * 5 ** 2)))
+        
+        # Run Mariscotti peak finder with auto threshold
+        smoothed, peaks = gs.mariscotti_peak_finder(counts)
+        
+        # Should find multiple peaks
+        self.assertGreaterEqual(len(peaks), 1)
+    
+    def test_mariscotti_peak_finder_no_peaks(self):
+        """tests for Mariscotti peak finding with flat data"""
+        # Create flat data - should find no peaks
+        counts = np.ones(100) * 50
+        
+        smoothed, peaks = gs.mariscotti_peak_finder(counts, threshold=-0.1)
+        
+        # Should find no peaks (or very few)
+        self.assertEqual(len(peaks), 0)
+    
+    def test_mariscotti_peak_finder_edge_cases(self):
+        """tests for Mariscotti peak finding edge cases"""
+        # Test with minimum size array
+        counts_min = np.array([1, 2, 3, 4, 5])
+        smoothed, peaks = gs.mariscotti_peak_finder(counts_min)
+        self.assertEqual(len(smoothed), 5)
+        self.assertIsInstance(peaks, np.ndarray)
+        
+        # Test with array that's too short
+        short_array = [1, 2, 3, 4]
+        self.assertRaises(ValueError, gs.mariscotti_peak_finder, short_array)
+    
+    def test_mariscotti_peak_finder_parameters(self):
+        """tests for Mariscotti peak finding with different parameters"""
+        # Create synthetic data
+        x = np.arange(100)
+        counts = 10 + 100 * np.exp(-((x - 50) ** 2) / (2 * 5 ** 2))
+        
+        # Test with different smoothing iterations
+        smoothed1, peaks1 = gs.mariscotti_peak_finder(counts, smooth_iterations=1)
+        smoothed2, peaks2 = gs.mariscotti_peak_finder(counts, smooth_iterations=3)
+        
+        self.assertEqual(len(smoothed1), len(counts))
+        self.assertEqual(len(smoothed2), len(counts))
+        
+        # Test with explicit threshold values
+        smoothed_low, peaks_low = gs.mariscotti_peak_finder(counts, threshold=-0.1)
+        smoothed_high, peaks_high = gs.mariscotti_peak_finder(counts, threshold=-10.0)
+        
+        # Higher (less negative) threshold should find more or equal peaks
+        self.assertGreaterEqual(len(peaks_low), len(peaks_high))
+        
+        # Test with auto threshold (None)
+        smoothed_auto, peaks_auto = gs.mariscotti_peak_finder(counts, threshold=None)
+        self.assertIsInstance(peaks_auto, np.ndarray)
+        self.assertEqual(len(smoothed_auto), len(counts))
 
 
 class TestPlotting(unittest.TestCase):

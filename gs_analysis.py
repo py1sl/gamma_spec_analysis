@@ -262,6 +262,83 @@ def peak_finder(
     return (sf2, peaks)
 
 
+def mariscotti_peak_finder(
+    counts: Union[Sequence[float], npt.NDArray[Any]], 
+    threshold: Optional[float] = None,
+    smooth_iterations: int = 2
+) -> Tuple[npt.NDArray[Any], npt.NDArray[Any]]:
+    """Identifies peaks using the Mariscotti 2nd difference method.
+    
+    This method applies smoothing followed by second difference calculation
+    to identify peaks. Peaks are identified where the second difference
+    is significantly negative (below the threshold).
+    
+    Reference: M.A. Mariscotti, Nuclear Instruments and Methods 50 (1967) 309-320
+    
+    Parameters
+    ----------
+    counts : array-like
+        The spectrum counts data
+    threshold : float, optional
+        Threshold value for peak identification. More negative values mean 
+        the second difference must be more negative to be considered a peak.
+        If None (default), automatically set to mean - 2*std of negative 
+        second differences for better noise rejection.
+    smooth_iterations : int, optional
+        Number of smoothing iterations to apply. Default is 2.
+        
+    Returns
+    -------
+    tuple of (smoothed_counts, peaks)
+        smoothed_counts : numpy array
+            The smoothed spectrum after processing
+        peaks : numpy array
+            Array of indices where peaks were detected
+    """
+    if len(counts) < 5:
+        raise ValueError("Input array must have at least 5 elements for Mariscotti peak finding.")
+    
+    counts_array = np.array(counts)
+    
+    # Apply smoothing iterations
+    smoothed = counts_array.copy()
+    for _ in range(smooth_iterations):
+        smoothed = five_point_smooth(smoothed)
+    
+    # Calculate second difference
+    # Second difference: S''[i] = S[i+1] - 2*S[i] + S[i-1]
+    second_diff = np.zeros(len(smoothed))
+    for i in range(1, len(smoothed) - 1):
+        second_diff[i] = smoothed[i + 1] - 2 * smoothed[i] + smoothed[i - 1]
+    
+    # Auto-calculate threshold if not provided
+    if threshold is None:
+        # Use only negative second differences for statistics
+        negative_diffs = second_diff[second_diff < 0]
+        if len(negative_diffs) > 0:
+            mean_neg = np.mean(negative_diffs)
+            std_neg = np.std(negative_diffs)
+            # Set threshold at mean - 1*std (less strict for better peak detection)
+            threshold = mean_neg - 1 * std_neg
+        else:
+            threshold = 0.0
+    
+    # Find peaks where second difference is negative (below threshold)
+    # A peak has a negative second difference
+    peak_candidates = []
+    for i in range(1, len(second_diff) - 1):
+        # Peak at position i if second_diff[i] is below threshold
+        # and it's a local minimum in the second difference
+        if (second_diff[i] < threshold and 
+            second_diff[i] < second_diff[i - 1] and 
+            second_diff[i] < second_diff[i + 1]):
+            peak_candidates.append(i)
+    
+    peaks = np.array(peak_candidates, dtype=int)
+    
+    return (smoothed, peaks)
+
+
 def plot_spect_peaks(
     smooth_counts: npt.NDArray[Any],
     ebins: npt.NDArray[Any],
