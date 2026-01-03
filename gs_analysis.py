@@ -282,7 +282,7 @@ def mariscotti_peak_finder(
     threshold : float, optional
         Threshold value for peak identification. More negative values mean 
         the second difference must be more negative to be considered a peak.
-        If None (default), automatically set to mean - 2*std of negative 
+        If None (default), automatically set to mean - 1*std of negative 
         second differences for better noise rejection.
     smooth_iterations : int, optional
         Number of smoothing iterations to apply. Default is 2.
@@ -305,11 +305,10 @@ def mariscotti_peak_finder(
     for _ in range(smooth_iterations):
         smoothed = five_point_smooth(smoothed)
     
-    # Calculate second difference
+    # Calculate second difference using vectorized operations
     # Second difference: S''[i] = S[i+1] - 2*S[i] + S[i-1]
     second_diff = np.zeros(len(smoothed))
-    for i in range(1, len(smoothed) - 1):
-        second_diff[i] = smoothed[i + 1] - 2 * smoothed[i] + smoothed[i - 1]
+    second_diff[1:-1] = smoothed[2:] - 2 * smoothed[1:-1] + smoothed[:-2]
     
     # Auto-calculate threshold if not provided
     if threshold is None:
@@ -323,18 +322,16 @@ def mariscotti_peak_finder(
         else:
             threshold = 0.0
     
-    # Find peaks where second difference is negative (below threshold)
-    # A peak has a negative second difference
-    peak_candidates = []
-    for i in range(1, len(second_diff) - 1):
-        # Peak at position i if second_diff[i] is below threshold
-        # and it's a local minimum in the second difference
-        if (second_diff[i] < threshold and 
-            second_diff[i] < second_diff[i - 1] and 
-            second_diff[i] < second_diff[i + 1]):
-            peak_candidates.append(i)
+    # Find peaks using vectorized operations
+    # A peak is where second_diff[i] < threshold and it's a local minimum
+    is_below_threshold = second_diff < threshold
+    is_local_min = np.zeros(len(second_diff), dtype=bool)
+    is_local_min[1:-1] = ((second_diff[1:-1] < second_diff[:-2]) & 
+                          (second_diff[1:-1] < second_diff[2:]))
     
-    peaks = np.array(peak_candidates, dtype=int)
+    # Peaks are where both conditions are met
+    peak_mask = is_below_threshold & is_local_min
+    peaks = np.where(peak_mask)[0]
     
     return (smoothed, peaks)
 
