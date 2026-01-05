@@ -2,6 +2,7 @@ import unittest
 import numpy as np
 import gs_creator
 from ph_spectrum import PhSpectrum
+import gs_analysis
 
 
 class TestGsCreator(unittest.TestCase):
@@ -328,6 +329,178 @@ class TestGsCreator(unittest.TestCase):
         
         # Verify background is present (minimum should be around background level)
         self.assertGreaterEqual(np.min(spectrum.counts), 0)
+
+    def test_create_compton_continuum(self):
+        """Test Compton continuum generation"""
+        energy = 662.0  # Cs-137
+        emission_rate = 1000.0
+        num_bins = 1000
+        energy_per_bin = 1.0
+        
+        continuum = gs_creator.create_compton_continuum(
+            energy, emission_rate, num_bins, energy_per_bin
+        )
+        
+        # Check output type and shape
+        self.assertIsInstance(continuum, np.ndarray)
+        self.assertEqual(len(continuum), num_bins)
+        
+        # Calculate expected Compton edge
+        m_e_c2 = 511.0
+        compton_edge = energy / (1 + m_e_c2 / (2 * energy))
+        
+        # Continuum should be zero above Compton edge
+        above_edge = continuum[int(compton_edge / energy_per_bin) + 10:]
+        self.assertEqual(np.sum(above_edge), 0.0)
+        
+        # Continuum should have some counts below Compton edge
+        below_edge = continuum[10:int(compton_edge / energy_per_bin) - 10]
+        self.assertGreater(np.sum(below_edge), 0.0)
+
+    def test_create_spectrum_with_compton(self):
+        """Test spectrum creation with Compton continuum"""
+        peak_energies = [662.0]
+        emission_rates = [5000.0]
+        num_bins = 1000
+        
+        # Create spectrum without Compton
+        spectrum_no_compton = gs_creator.create_spectrum_from_peaks(
+            peak_energies, emission_rates, num_bins,
+            include_compton=False
+        )
+        
+        # Create spectrum with Compton
+        spectrum_with_compton = gs_creator.create_spectrum_from_peaks(
+            peak_energies, emission_rates, num_bins,
+            include_compton=True
+        )
+        
+        # With Compton should have more total counts
+        self.assertGreater(
+            np.sum(spectrum_with_compton.counts),
+            np.sum(spectrum_no_compton.counts)
+        )
+        
+        # Both should have similar peak heights
+        self.assertAlmostEqual(
+            np.max(spectrum_with_compton.counts),
+            np.max(spectrum_no_compton.counts),
+            delta=100
+        )
+
+    def test_create_spectrum_with_efficiency(self):
+        """Test spectrum creation with efficiency correction"""
+        # Two peaks at different energies
+        peak_energies = [500.0, 1500.0]
+        emission_rates = [1000.0, 1000.0]  # Same emission rate
+        num_bins = 2000
+        energy_range = (0.0, 2000.0)
+        
+        # Create simple efficiency that decreases with energy
+        # log(eff) = a + b*log(E) where b is negative
+        eff_coefficients = [2.0, -0.5]  # Higher energy -> lower efficiency
+        
+        # Create spectrum with efficiency correction
+        spectrum = gs_creator.create_spectrum_from_peaks(
+            peak_energies, emission_rates, num_bins,
+            energy_range=energy_range,
+            efficiency_coefficients=eff_coefficients,
+            efficiency_fit_type=1
+        )
+        
+        # Find peak positions
+        peak_counts = []
+        for energy in peak_energies:
+            channel = int((energy - energy_range[0]) / ((energy_range[1] - energy_range[0]) / num_bins))
+            # Get counts around the peak
+            peak_counts.append(np.max(spectrum.counts[max(0, channel-10):min(num_bins, channel+10)]))
+        
+        # Higher energy peak should have fewer counts due to lower efficiency
+        self.assertGreater(peak_counts[0], peak_counts[1])
+        
+        # Check that efficiency coefficients are stored
+        self.assertEqual(spectrum.efficiency_fit_coefficients, eff_coefficients)
+
+    def test_create_spectrum_efficiency_without_correction(self):
+        """Test that without efficiency correction, peaks have same height"""
+        peak_energies = [500.0, 1500.0]
+        emission_rates = [1000.0, 1000.0]
+        num_bins = 2000
+        energy_range = (0.0, 2000.0)
+        
+        # Create spectrum without efficiency correction
+        spectrum = gs_creator.create_spectrum_from_peaks(
+            peak_energies, emission_rates, num_bins,
+            energy_range=energy_range
+        )
+        
+        # Find peak positions
+        peak_counts = []
+        for energy in peak_energies:
+            channel = int((energy - energy_range[0]) / ((energy_range[1] - energy_range[0]) / num_bins))
+            peak_counts.append(np.max(spectrum.counts[max(0, channel-10):min(num_bins, channel+10)]))
+        
+        # Without efficiency correction, peaks should have similar heights
+        self.assertAlmostEqual(peak_counts[0], peak_counts[1], delta=50)
+
+    def test_compton_fraction_parameter(self):
+        """Test that compton_fraction parameter affects continuum intensity"""
+        peak_energies = [1000.0]
+        emission_rates = [5000.0]
+        num_bins = 1500
+        
+        # Create with low Compton fraction
+        spectrum_low = gs_creator.create_spectrum_from_peaks(
+            peak_energies, emission_rates, num_bins,
+            include_compton=True,
+            compton_fraction=0.2
+        )
+        
+        # Create with high Compton fraction
+        spectrum_high = gs_creator.create_spectrum_from_peaks(
+            peak_energies, emission_rates, num_bins,
+            include_compton=True,
+            compton_fraction=0.8
+        )
+        
+        # Higher fraction should have more total counts
+        self.assertGreater(
+            np.sum(spectrum_high.counts),
+            np.sum(spectrum_low.counts)
+        )
+
+    def test_integration_compton_and_efficiency(self):
+        """Integration test: spectrum with both Compton and efficiency"""
+        # Cs-137 spectrum with realistic parameters
+        peak_energies = [662.0]
+        emission_rates = [10000.0]
+        num_bins = 1000
+        energy_range = (0.0, 1000.0)
+        
+        # Realistic efficiency coefficients
+        eff_coefficients = [1.5, -0.3]
+        
+        spectrum = gs_creator.create_spectrum_from_peaks(
+            peak_energies, emission_rates, num_bins,
+            energy_range=energy_range,
+            include_compton=True,
+            compton_fraction=0.5,
+            efficiency_coefficients=eff_coefficients,
+            efficiency_fit_type=1,
+            spec_name="Cs137_realistic"
+        )
+        
+        # Verify basic structure
+        self.assertEqual(spectrum.spec_name, "Cs137_realistic")
+        self.assertEqual(spectrum.num_channels, num_bins)
+        
+        # Should have efficiency coefficients stored
+        self.assertEqual(spectrum.efficiency_fit_coefficients, eff_coefficients)
+        
+        # Should have counts in Compton region (below peak)
+        peak_channel = int(662.0 / (energy_range[1] / num_bins))
+        compton_region = spectrum.counts[100:peak_channel-50]
+        self.assertGreater(np.sum(compton_region), 0)
 
 
 if __name__ == "__main__":
