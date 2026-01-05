@@ -52,6 +52,30 @@ class TestGsCreator(unittest.TestCase):
         # Wider peak should have larger total area
         self.assertGreater(np.sum(peak_wide), np.sum(peak_narrow))
 
+    def test_create_gaussian_peak_with_offset(self):
+        """Test Gaussian peak creation with non-zero energy offset"""
+        energy = 1500.0  # Peak at 1500 keV
+        emission_rate = 1000.0
+        num_bins = 500
+        energy_per_bin = 5.0
+        min_energy = 500.0  # Start at 500 keV
+        
+        # Create peak with offset
+        peak = gs_creator.create_gaussian_peak(
+            energy, emission_rate, num_bins, energy_per_bin, min_energy
+        )
+        
+        # Check output
+        self.assertIsInstance(peak, np.ndarray)
+        self.assertEqual(len(peak), num_bins)
+        
+        # Peak should be at correct channel accounting for offset
+        # Energy range is 500-3000 keV (500 bins * 5 keV/bin + 500 keV offset)
+        # Peak at 1500 keV should be at channel (1500 - 500) / 5 = 200
+        expected_channel = int((energy - min_energy) / energy_per_bin)
+        max_channel = np.argmax(peak)
+        self.assertAlmostEqual(expected_channel, max_channel, delta=5)
+
     def test_create_spectrum_from_peaks_single_peak(self):
         """Test spectrum creation with a single peak"""
         peak_energies = [662.0]  # Cs-137

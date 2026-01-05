@@ -13,6 +13,7 @@ def create_gaussian_peak(
     emission_rate: float,
     num_bins: int,
     energy_per_bin: float,
+    min_energy: float = 0.0,
     fwhm_factor: float = 0.02,
 ) -> npt.NDArray[np.int64]:
     """Create a Gaussian peak at a specific energy.
@@ -27,6 +28,8 @@ def create_gaussian_peak(
         Total number of bins in the spectrum
     energy_per_bin : float
         Energy per bin in keV
+    min_energy : float, optional
+        Minimum energy (offset) for the spectrum in keV (default 0.0)
     fwhm_factor : float, optional
         Factor to calculate FWHM from energy (default 0.02 means 2% of energy)
         
@@ -35,8 +38,8 @@ def create_gaussian_peak(
     np.ndarray
         Array of counts for the Gaussian peak
     """
-    # Create energy bins
-    ebins = np.arange(num_bins) * energy_per_bin
+    # Create energy bins accounting for offset
+    ebins = np.arange(num_bins) * energy_per_bin + min_energy
     
     # Calculate FWHM and sigma
     fwhm = fwhm_factor * energy
@@ -120,7 +123,7 @@ def create_spectrum_from_peaks(
     for energy, rate in zip(peak_energies, emission_rates):
         if min_energy <= energy <= max_energy:
             peak_counts = create_gaussian_peak(
-                energy, rate, num_bins, energy_per_bin, fwhm_factor
+                energy, rate, num_bins, energy_per_bin, min_energy, fwhm_factor
             )
             counts += peak_counts
     
