@@ -8,6 +8,10 @@ import numpy.typing as npt
 from ph_spectrum import PhSpectrum
 import gs_analysis
 
+# Physical constants
+ELECTRON_REST_MASS_KEV = 511.0  # Electron rest mass energy in keV
+KEV_TO_MEV = 1000.0  # Conversion factor from keV to MeV
+
 
 def create_gaussian_peak(
     energy: float,
@@ -59,6 +63,7 @@ def create_compton_continuum(
     energy_per_bin: float,
     min_energy: float = 0.0,
     compton_fraction: float = 0.5,
+    shape_exponent: float = 2.0,
 ) -> npt.NDArray[np.float64]:
     """Create Compton continuum for a gamma peak.
     
@@ -79,6 +84,9 @@ def create_compton_continuum(
         Minimum energy (offset) for the spectrum in keV (default 0.0)
     compton_fraction : float, optional
         Fraction of peak intensity that goes into Compton continuum (default 0.5)
+    shape_exponent : float, optional
+        Power law exponent for continuum shape (default 2.0).
+        Higher values give steeper falloff at lower energies.
         
     Returns
     -------
@@ -90,9 +98,7 @@ def create_compton_continuum(
     
     # Calculate Compton edge energy
     # E_compton = E_gamma / (1 + m_e*c^2 / (2*E_gamma))
-    # where m_e*c^2 = 511 keV (electron rest mass energy)
-    m_e_c2 = 511.0  # keV
-    compton_edge = energy / (1 + m_e_c2 / (2 * energy))
+    compton_edge = energy / (1 + ELECTRON_REST_MASS_KEV / (2 * energy))
     
     # Initialize continuum array
     continuum = np.zeros(num_bins, dtype=np.float64)
@@ -102,9 +108,8 @@ def create_compton_continuum(
     
     if np.any(mask):
         # Simplified continuum shape: decreasing from Compton edge to lower energies
-        # Using a power law shape that's common in gamma spectroscopy
-        # Intensity ~ (E / E_compton)^2 for a simple approximation
-        continuum[mask] = compton_fraction * emission_rate * (ebins[mask] / compton_edge) ** 2
+        # Using a power law shape: Intensity ~ (E / E_compton)^shape_exponent
+        continuum[mask] = compton_fraction * emission_rate * (ebins[mask] / compton_edge) ** shape_exponent
     
     return continuum
 
@@ -199,7 +204,7 @@ def create_spectrum_from_peaks(
             effective_rate = rate
             if efficiency_coefficients is not None:
                 # Convert keV to MeV for efficiency calculation
-                energy_mev = energy / 1000.0
+                energy_mev = energy / KEV_TO_MEV
                 efficiency = gs_analysis.calc_energy_efficiency(
                     energy_mev, efficiency_coefficients, efficiency_fit_type
                 )

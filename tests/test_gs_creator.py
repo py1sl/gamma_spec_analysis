@@ -5,6 +5,29 @@ from ph_spectrum import PhSpectrum
 import gs_analysis
 
 
+def calculate_channel_from_energy(energy, min_energy, max_energy, num_bins):
+    """Helper function to calculate channel number from energy.
+    
+    Parameters
+    ----------
+    energy : float
+        Energy in keV
+    min_energy : float
+        Minimum energy of spectrum in keV
+    max_energy : float
+        Maximum energy of spectrum in keV
+    num_bins : int
+        Number of bins in spectrum
+        
+    Returns
+    -------
+    int
+        Channel number corresponding to the energy
+    """
+    energy_per_bin = (max_energy - min_energy) / num_bins
+    return int((energy - min_energy) / energy_per_bin)
+
+
 class TestGsCreator(unittest.TestCase):
     """Tests for gs_creator module functions"""
 
@@ -345,9 +368,8 @@ class TestGsCreator(unittest.TestCase):
         self.assertIsInstance(continuum, np.ndarray)
         self.assertEqual(len(continuum), num_bins)
         
-        # Calculate expected Compton edge
-        m_e_c2 = 511.0
-        compton_edge = energy / (1 + m_e_c2 / (2 * energy))
+        # Calculate expected Compton edge using module constant
+        compton_edge = energy / (1 + gs_creator.ELECTRON_REST_MASS_KEV / (2 * energy))
         
         # Continuum should be zero above Compton edge
         above_edge = continuum[int(compton_edge / energy_per_bin) + 10:]
@@ -411,7 +433,7 @@ class TestGsCreator(unittest.TestCase):
         # Find peak positions
         peak_counts = []
         for energy in peak_energies:
-            channel = int((energy - energy_range[0]) / ((energy_range[1] - energy_range[0]) / num_bins))
+            channel = calculate_channel_from_energy(energy, energy_range[0], energy_range[1], num_bins)
             # Get counts around the peak
             peak_counts.append(np.max(spectrum.counts[max(0, channel-10):min(num_bins, channel+10)]))
         
@@ -437,7 +459,7 @@ class TestGsCreator(unittest.TestCase):
         # Find peak positions
         peak_counts = []
         for energy in peak_energies:
-            channel = int((energy - energy_range[0]) / ((energy_range[1] - energy_range[0]) / num_bins))
+            channel = calculate_channel_from_energy(energy, energy_range[0], energy_range[1], num_bins)
             peak_counts.append(np.max(spectrum.counts[max(0, channel-10):min(num_bins, channel+10)]))
         
         # Without efficiency correction, peaks should have similar heights
@@ -498,7 +520,7 @@ class TestGsCreator(unittest.TestCase):
         self.assertEqual(spectrum.efficiency_fit_coefficients, eff_coefficients)
         
         # Should have counts in Compton region (below peak)
-        peak_channel = int(662.0 / (energy_range[1] / num_bins))
+        peak_channel = calculate_channel_from_energy(662.0, energy_range[0], energy_range[1], num_bins)
         compton_region = spectrum.counts[100:peak_channel-50]
         self.assertGreater(np.sum(compton_region), 0)
 
