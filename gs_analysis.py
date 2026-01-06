@@ -182,6 +182,9 @@ def estimate_background_linear(counts: npt.NDArray[Any], c1: int, c2: int) -> fl
     channels before c1 and after c2. The background under the peak is 
     calculated by integrating the linear function across the peak region.
     
+    Note: The peak region is defined by Python slicing convention [c1:c2),
+    meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
+    
     Parameters
     ----------
     counts : numpy array
@@ -189,7 +192,7 @@ def estimate_background_linear(counts: npt.NDArray[Any], c1: int, c2: int) -> fl
     c1 : int
         Channel number of the start of peak (inclusive)
     c2 : int
-        Channel number of the peak end (exclusive)
+        Channel number of the peak end (exclusive, as in Python slicing)
         
     Returns
     -------
@@ -208,6 +211,7 @@ def estimate_background_linear(counts: npt.NDArray[Any], c1: int, c2: int) -> fl
     high_avg = float(np.mean(counts[c2:high_end])) if high_count > 0 else 0.0
     
     # Linear interpolation: background is the trapezoidal area under the line
+    # Width matches Python slicing: c2 - c1 (c2 is exclusive)
     width = c2 - c1
     bg = (low_avg + high_avg) * width / 2.0
     
@@ -221,6 +225,9 @@ def estimate_background_step(counts: npt.NDArray[Any], c1: int, c2: int) -> floa
     sides of the peak and uses this constant value as the background level 
     under the peak.
     
+    Note: The peak region is defined by Python slicing convention [c1:c2),
+    meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
+    
     Parameters
     ----------
     counts : numpy array
@@ -228,7 +235,7 @@ def estimate_background_step(counts: npt.NDArray[Any], c1: int, c2: int) -> floa
     c1 : int
         Channel number of the start of peak (inclusive)
     c2 : int
-        Channel number of the peak end (exclusive)
+        Channel number of the peak end (exclusive, as in Python slicing)
         
     Returns
     -------
@@ -248,6 +255,7 @@ def estimate_background_step(counts: npt.NDArray[Any], c1: int, c2: int) -> floa
     
     # Step function: use the average of both sides
     avg_bg = (low_avg + high_avg) / 2.0
+    # Width matches Python slicing: c2 - c1 (c2 is exclusive)
     width = c2 - c1
     bg = avg_bg * width
     
@@ -263,6 +271,9 @@ def estimate_background_sliding_average(
     regions adjacent to the peak, then interpolating under the peak region.
     This method is more robust to local variations in the background.
     
+    Note: The peak region is defined by Python slicing convention [c1:c2),
+    meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
+    
     Parameters
     ----------
     counts : numpy array
@@ -270,7 +281,7 @@ def estimate_background_sliding_average(
     c1 : int
         Channel number of the start of peak (inclusive)
     c2 : int
-        Channel number of the peak end (exclusive)
+        Channel number of the peak end (exclusive, as in Python slicing)
     window : int, optional
         Size of the sliding window for averaging. Default is 5.
         
@@ -289,28 +300,19 @@ def estimate_background_sliding_average(
     
     # Calculate averages using available data
     if low_end > low_start:
-        # Use sliding window average on left side
         low_region = counts[low_start:low_end]
-        if len(low_region) >= 3:
-            # Apply simple moving average
-            low_avg = float(np.mean(low_region))
-        else:
-            low_avg = float(np.mean(low_region)) if len(low_region) > 0 else 0.0
+        low_avg = float(np.mean(low_region)) if len(low_region) > 0 else 0.0
     else:
         low_avg = 0.0
     
     if high_end > high_start:
-        # Use sliding window average on right side
         high_region = counts[high_start:high_end]
-        if len(high_region) >= 3:
-            # Apply simple moving average
-            high_avg = float(np.mean(high_region))
-        else:
-            high_avg = float(np.mean(high_region)) if len(high_region) > 0 else 0.0
+        high_avg = float(np.mean(high_region)) if len(high_region) > 0 else 0.0
     else:
         high_avg = 0.0
     
     # Linear interpolation between the two averaged regions
+    # Width matches Python slicing: c2 - c1 (c2 is exclusive)
     width = c2 - c1
     bg = (low_avg + high_avg) * width / 2.0
     

@@ -16,6 +16,8 @@ Author: Generated for gamma_spec_analysis
 import numpy as np
 import matplotlib.pyplot as plt
 import gs_analysis as gs
+import tempfile
+import os
 
 
 def create_synthetic_spectrum():
@@ -210,8 +212,9 @@ def main():
     fig = visualize_background_methods(counts, c1, c2, 
                                       "Background Subtraction Methods Comparison")
     
-    # Save the figure
-    output_file = "/tmp/background_methods_comparison.png"
+    # Save the figure to a portable temp directory
+    temp_dir = tempfile.gettempdir()
+    output_file = os.path.join(temp_dir, "background_methods_comparison.png")
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
     print(f"Visualization saved to: {output_file}")
     print()
