@@ -23,7 +23,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertRaises(ValueError, gs.calc_bg, counts, -1, 4)
         self.assertRaises(ValueError, gs.calc_bg, counts, 1, 10)
         self.assertRaises(ValueError, gs.calc_bg, counts, 10, 4)
-        self.assertRaises(ValueError, gs.calc_bg, counts, 1, 4, 2)
+        self.assertRaises(ValueError, gs.calc_bg, counts, 1, 4, 5)  # Invalid method
 
         # net
         self.assertRaises(ValueError, gs.net_counts, counts, -1, 4)
@@ -111,7 +111,7 @@ class analysis_test_case(unittest.TestCase):
         """tests for background calculation functions"""
         counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         
-        # Test calc_bg with valid parameters
+        # Test calc_bg with valid parameters (method 1 - trapezoid)
         bg = gs.calc_bg(counts, 2, 7, m=1)
         self.assertIsInstance(bg, float)
         self.assertGreaterEqual(bg, 0)
@@ -128,6 +128,94 @@ class analysis_test_case(unittest.TestCase):
         # Test edge case: channels at the end
         bg_end = gs.estimate_background_trapezoid(counts, 7, 9)
         self.assertIsInstance(bg_end, float)
+        
+        # Test method 2 - linear interpolation
+        bg_linear = gs.calc_bg(counts, 2, 7, m=2)
+        self.assertIsInstance(bg_linear, float)
+        self.assertGreaterEqual(bg_linear, 0)
+        
+        # Test estimate_background_linear directly
+        bg_linear_direct = gs.estimate_background_linear(counts, 2, 7)
+        self.assertIsInstance(bg_linear_direct, float)
+        self.assertGreaterEqual(bg_linear_direct, 0)
+        
+        # Test method 3 - step function
+        bg_step = gs.calc_bg(counts, 2, 7, m=3)
+        self.assertIsInstance(bg_step, float)
+        self.assertGreaterEqual(bg_step, 0)
+        
+        # Test estimate_background_step directly
+        bg_step_direct = gs.estimate_background_step(counts, 2, 7)
+        self.assertIsInstance(bg_step_direct, float)
+        self.assertGreaterEqual(bg_step_direct, 0)
+        
+        # Test method 4 - sliding window average
+        bg_sliding = gs.calc_bg(counts, 2, 7, m=4)
+        self.assertIsInstance(bg_sliding, float)
+        self.assertGreaterEqual(bg_sliding, 0)
+        
+        # Test estimate_background_sliding_average directly
+        bg_sliding_direct = gs.estimate_background_sliding_average(counts, 2, 7)
+        self.assertIsInstance(bg_sliding_direct, float)
+        self.assertGreaterEqual(bg_sliding_direct, 0)
+        
+        # Test invalid method number
+        with self.assertRaises(ValueError):
+            gs.calc_bg(counts, 2, 7, m=5)
+    
+    def test_background_methods_comparison(self):
+        """Compare different background subtraction methods"""
+        # Create a synthetic peak with known background
+        x = np.arange(100)
+        background_level = 50.0
+        peak = 200 * np.exp(-((x - 50) ** 2) / (2 * 5 ** 2))
+        counts = background_level + peak
+        
+        # Define peak region (channels 40-60)
+        c1, c2 = 40, 60
+        
+        # All methods should give reasonable backgrounds
+        bg_trap = gs.calc_bg(counts, c1, c2, m=1)
+        bg_linear = gs.calc_bg(counts, c1, c2, m=2)
+        bg_step = gs.calc_bg(counts, c1, c2, m=3)
+        bg_sliding = gs.calc_bg(counts, c1, c2, m=4)
+        
+        # All should be positive
+        self.assertGreater(bg_trap, 0)
+        self.assertGreater(bg_linear, 0)
+        self.assertGreater(bg_step, 0)
+        self.assertGreater(bg_sliding, 0)
+        
+        # For a flat background, all methods should give similar results
+        # (within reasonable tolerance given the peak interference)
+        expected_bg = background_level * (c2 - c1)
+        
+        # Check that all methods are within reasonable range of expected
+        # (allowing for variation due to peak edges)
+        for bg_value in [bg_trap, bg_linear, bg_step, bg_sliding]:
+            self.assertGreater(bg_value, expected_bg * 0.5)
+            self.assertLess(bg_value, expected_bg * 2.0)
+    
+    def test_background_edge_cases_all_methods(self):
+        """Test edge cases for all background methods"""
+        counts = np.array([5, 10, 15, 20, 25, 30, 35, 40, 45, 50])
+        
+        # Test at spectrum edges for all methods
+        for method in [1, 2, 3, 4]:
+            # At start of spectrum
+            bg_start = gs.calc_bg(counts, 0, 3, m=method)
+            self.assertIsInstance(bg_start, float)
+            self.assertGreaterEqual(bg_start, 0)
+            
+            # At end of spectrum
+            bg_end = gs.calc_bg(counts, 7, 9, m=method)
+            self.assertIsInstance(bg_end, float)
+            self.assertGreaterEqual(bg_end, 0)
+            
+            # Single channel peak
+            bg_single = gs.calc_bg(counts, 5, 6, m=method)
+            self.assertIsInstance(bg_single, float)
+            self.assertGreaterEqual(bg_single, 0)
     
     def test_net_counts(self):
         """tests for net counts calculation"""
