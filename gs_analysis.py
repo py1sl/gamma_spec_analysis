@@ -129,12 +129,21 @@ def calc_bg(counts: npt.NDArray[Any], c1: int, c2: int, m: int = 1) -> float:
     c1 is channel number of the start of peak
     c2 is channel number of the peak end
     m is a selector for different  background calculation methods
-    m == 1 is a simple trapesium background from Maestro
+    m == 1 is a simple trapezoid background from Maestro
+    m == 2 is a linear interpolation method
+    m == 3 is a step function method (average of edges)
+    m == 4 is a sliding window average method
     """
 
     if check_channel_validity(c1, c2, counts):
         if m == 1:
             bg = estimate_background_trapezoid(counts, c1, c2)
+        elif m == 2:
+            bg = estimate_background_linear(counts, c1, c2)
+        elif m == 3:
+            bg = estimate_background_step(counts, c1, c2)
+        elif m == 4:
+            bg = estimate_background_sliding_average(counts, c1, c2)
         else:
             raise ValueError("m is not set to a valid method id")
 
@@ -163,6 +172,150 @@ def estimate_background_trapezoid(counts: npt.NDArray[Any], c1: int, c2: int) ->
     width = c2 - c1 + 1
     bg = (low_sum + high_sum) * (width / 6.0)
 
+    return float(bg)
+
+
+def estimate_background_linear(counts: npt.NDArray[Any], c1: int, c2: int) -> float:
+    """Estimate background using linear interpolation between edge points.
+    
+    This method uses a simple linear interpolation between the average of 
+    channels before c1 and after c2. The background under the peak is 
+    calculated by integrating the linear function across the peak region.
+    
+    Note: The peak region is defined by Python slicing convention [c1:c2),
+    meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
+    
+    Parameters
+    ----------
+    counts : numpy array
+        The spectrum counts data
+    c1 : int
+        Channel number of the start of peak (inclusive)
+    c2 : int
+        Channel number of the peak end (exclusive, as in Python slicing)
+        
+    Returns
+    -------
+    float
+        Estimated background counts under the peak
+    """
+    check_channel_validity(c1, c2, counts)
+    
+    # Use two channels on each side for better statistics
+    low_start = max(0, c1 - 2)
+    low_count = len(counts[low_start:c1])
+    low_avg = float(np.mean(counts[low_start:c1])) if low_count > 0 else 0.0
+    
+    high_end = min(len(counts), c2 + 2)
+    high_count = len(counts[c2:high_end])
+    high_avg = float(np.mean(counts[c2:high_end])) if high_count > 0 else 0.0
+    
+    # Linear interpolation: background is the trapezoidal area under the line
+    # Width matches Python slicing: c2 - c1 (c2 is exclusive)
+    width = c2 - c1
+    bg = (low_avg + high_avg) * width / 2.0
+    
+    return float(bg)
+
+
+def estimate_background_step(counts: npt.NDArray[Any], c1: int, c2: int) -> float:
+    """Estimate background using a step function (average of edges).
+    
+    This method calculates the average of the background regions on both 
+    sides of the peak and uses this constant value as the background level 
+    under the peak.
+    
+    Note: The peak region is defined by Python slicing convention [c1:c2),
+    meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
+    
+    Parameters
+    ----------
+    counts : numpy array
+        The spectrum counts data
+    c1 : int
+        Channel number of the start of peak (inclusive)
+    c2 : int
+        Channel number of the peak end (exclusive, as in Python slicing)
+        
+    Returns
+    -------
+    float
+        Estimated background counts under the peak
+    """
+    check_channel_validity(c1, c2, counts)
+    
+    # Use two channels on each side
+    low_start = max(0, c1 - 2)
+    low_count = len(counts[low_start:c1])
+    low_avg = float(np.mean(counts[low_start:c1])) if low_count > 0 else 0.0
+    
+    high_end = min(len(counts), c2 + 2)
+    high_count = len(counts[c2:high_end])
+    high_avg = float(np.mean(counts[c2:high_end])) if high_count > 0 else 0.0
+    
+    # Step function: use the average of both sides
+    avg_bg = (low_avg + high_avg) / 2.0
+    # Width matches Python slicing: c2 - c1 (c2 is exclusive)
+    width = c2 - c1
+    bg = avg_bg * width
+    
+    return float(bg)
+
+
+def estimate_background_sliding_average(
+    counts: npt.NDArray[Any], c1: int, c2: int, window: int = 5
+) -> float:
+    """Estimate background using a sliding window average method.
+    
+    This method calculates the background by taking a moving average in the 
+    regions adjacent to the peak, then interpolating under the peak region.
+    This method is more robust to local variations in the background.
+    
+    Note: The peak region is defined by Python slicing convention [c1:c2),
+    meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
+    
+    Parameters
+    ----------
+    counts : numpy array
+        The spectrum counts data
+    c1 : int
+        Channel number of the start of peak (inclusive)
+    c2 : int
+        Channel number of the peak end (exclusive, as in Python slicing)
+    window : int, optional
+        Size of the sliding window for averaging. Default is 5.
+        
+    Returns
+    -------
+    float
+        Estimated background counts under the peak
+    """
+    check_channel_validity(c1, c2, counts)
+    
+    # Determine safe windows for averaging
+    low_start = max(0, c1 - window)
+    low_end = c1
+    high_start = c2
+    high_end = min(len(counts), c2 + window)
+    
+    # Calculate averages using available data
+    if low_end > low_start:
+        low_region = counts[low_start:low_end]
+        low_avg = float(np.mean(low_region)) if len(low_region) > 0 else 0.0
+    else:
+        low_avg = 0.0
+    
+    if high_end > high_start:
+        high_region = counts[high_start:high_end]
+        high_avg = float(np.mean(high_region)) if len(high_region) > 0 else 0.0
+    else:
+        high_avg = 0.0
+    
+    # Linear interpolation between the two averaged regions
+    # Width matches Python slicing: c2 - c1 (c2 is exclusive)
+    width = c2 - c1
+    bg = (low_avg + high_avg) * width / 2.0
+    
     return float(bg)
 
 
