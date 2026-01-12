@@ -30,7 +30,7 @@ class PerformanceTest(unittest.TestCase):
         
         # Check middle element calculation using actual test data
         # For index 2: (1/9) * (data[0] + data[4] + 2*data[3] + 2*data[1] + 3*data[2])
-        expected_idx2 = (1.0 / 9.0) * (data[0] + data[4] + 2*data[3] + 2*data[1] + 3*data[2])
+        expected_idx2 = (1.0 / 9.0) * (data[0] + data[4] + 2 * data[3] + 2 * data[1] + 3 * data[2])
         np.testing.assert_almost_equal(result[2], expected_idx2)
         
     def test_three_point_smooth_correctness(self):
@@ -72,8 +72,8 @@ class PerformanceTest(unittest.TestCase):
         
         # Verify performance is reasonable (should be < 1ms per call for 10k elements)
         avg_time = elapsed / iterations
-        self.assertLess(avg_time, 0.001, 
-                       f"five_point_smooth took {avg_time*1000:.3f}ms, expected < 1ms")
+        self.assertLess(avg_time, 0.001,
+                        f"five_point_smooth took {avg_time * 1000:.3f}ms, expected < 1ms")
         
     def test_three_point_smooth_performance(self):
         """Benchmark three_point_smooth function"""
@@ -89,8 +89,8 @@ class PerformanceTest(unittest.TestCase):
         
         # Verify performance is reasonable (should be < 1ms per call for 10k elements)
         avg_time = elapsed / iterations
-        self.assertLess(avg_time, 0.001, 
-                       f"three_point_smooth took {avg_time*1000:.3f}ms, expected < 1ms")
+        self.assertLess(avg_time, 0.001,
+                        f"three_point_smooth took {avg_time * 1000:.3f}ms, expected < 1ms")
         
     def test_moving_average_performance(self):
         """Benchmark moving_average function"""
@@ -106,8 +106,8 @@ class PerformanceTest(unittest.TestCase):
         
         # Verify performance is reasonable (should be < 10ms per call for 10k elements)
         avg_time = elapsed / iterations
-        self.assertLess(avg_time, 0.010, 
-                       f"moving_average took {avg_time*1000:.3f}ms, expected < 10ms")
+        self.assertLess(avg_time, 0.010,
+                        f"moving_average took {avg_time * 1000:.3f}ms, expected < 10ms")
         
     def test_smoothing_maintains_signal_integrity(self):
         """Test that smoothing preserves important signal properties"""
