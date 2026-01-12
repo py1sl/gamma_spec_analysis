@@ -160,7 +160,7 @@ def moving_average(
     half_window = window // 2
     smooth_spec = np.empty_like(counts_array)
     
-    # Vectorized edge handling: use available neighbors only
+    # Edge handling: use available neighbors only
     for i in range(len(counts_array)):
         start = max(0, i - half_window)
         end = min(len(counts_array), i + half_window + 1)

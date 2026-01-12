@@ -28,8 +28,8 @@ class PerformanceTest(unittest.TestCase):
         self.assertEqual(result[-2], data[-2])
         self.assertEqual(result[-1], data[-1])
         
-        # Check middle element calculation
-        # For index 2: (1/9) * (1 + 5 + 2*4 + 2*2 + 3*3) = (1/9) * (1 + 5 + 8 + 4 + 9) = 27/9 = 3
+        # Check middle element calculation using actual test data
+        # For index 2: (1/9) * (data[0] + data[4] + 2*data[3] + 2*data[1] + 3*data[2])
         expected_idx2 = (1.0 / 9.0) * (data[0] + data[4] + 2*data[3] + 2*data[1] + 3*data[2])
         np.testing.assert_almost_equal(result[2], expected_idx2)
         
@@ -70,9 +70,10 @@ class PerformanceTest(unittest.TestCase):
         self.assertIsInstance(result, np.ndarray)
         self.assertEqual(len(result), len(self.large_data))
         
-        # Print timing information (for manual inspection)
+        # Verify performance is reasonable (should be < 1ms per call for 10k elements)
         avg_time = elapsed / iterations
-        print(f"\nfive_point_smooth: {avg_time*1000:.3f} ms per call (10k elements, {iterations} iterations)")
+        self.assertLess(avg_time, 0.001, 
+                       f"five_point_smooth took {avg_time*1000:.3f}ms, expected < 1ms")
         
     def test_three_point_smooth_performance(self):
         """Benchmark three_point_smooth function"""
@@ -86,8 +87,10 @@ class PerformanceTest(unittest.TestCase):
         self.assertIsInstance(result, np.ndarray)
         self.assertEqual(len(result), len(self.large_data))
         
+        # Verify performance is reasonable (should be < 1ms per call for 10k elements)
         avg_time = elapsed / iterations
-        print(f"\nthree_point_smooth: {avg_time*1000:.3f} ms per call (10k elements, {iterations} iterations)")
+        self.assertLess(avg_time, 0.001, 
+                       f"three_point_smooth took {avg_time*1000:.3f}ms, expected < 1ms")
         
     def test_moving_average_performance(self):
         """Benchmark moving_average function"""
@@ -101,8 +104,10 @@ class PerformanceTest(unittest.TestCase):
         self.assertIsInstance(result, np.ndarray)
         self.assertEqual(len(result), len(self.large_data))
         
+        # Verify performance is reasonable (should be < 10ms per call for 10k elements)
         avg_time = elapsed / iterations
-        print(f"\nmoving_average: {avg_time*1000:.3f} ms per call (10k elements, {iterations} iterations)")
+        self.assertLess(avg_time, 0.010, 
+                       f"moving_average took {avg_time*1000:.3f}ms, expected < 10ms")
         
     def test_smoothing_maintains_signal_integrity(self):
         """Test that smoothing preserves important signal properties"""
