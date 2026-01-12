@@ -190,6 +190,75 @@ class analysis_test_case(unittest.TestCase):
         # Test with invalid alpha (greater than 1)
         self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=1.5)
 
+    def test_five_point_smooth_correctness(self):
+        """Test that five_point_smooth produces correct results"""
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        result = gs.five_point_smooth(data)
+        
+        # First two and last two elements should be unchanged
+        self.assertEqual(result[0], data[0])
+        self.assertEqual(result[1], data[1])
+        self.assertEqual(result[-2], data[-2])
+        self.assertEqual(result[-1], data[-1])
+        
+        # Check middle element calculation using actual test data
+        # For index 2: (1/9) * (data[0] + data[4] + 2*data[3] + 2*data[1] + 3*data[2])
+        expected_idx2 = (1.0 / 9.0) * (data[0] + data[4] + 2 * data[3] + 2 * data[1] + 3 * data[2])
+        np.testing.assert_almost_equal(result[2], expected_idx2)
+
+    def test_three_point_smooth_correctness(self):
+        """Test that three_point_smooth produces correct results"""
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        result = gs.three_point_smooth(data)
+        
+        # First and last elements should be unchanged
+        self.assertEqual(result[0], data[0])
+        self.assertEqual(result[-1], data[-1])
+        
+        # Check middle element calculation
+        # For index 1: (1 + 2 + 3) / 3 = 2
+        expected_idx1 = (data[0] + data[1] + data[2]) / 3.0
+        np.testing.assert_almost_equal(result[1], expected_idx1)
+
+    def test_moving_average_correctness(self):
+        """Test that moving_average produces correct results"""
+        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        result = gs.moving_average(data, window=5)
+        
+        # Check middle element calculation
+        # For index 5 with window=5: mean of [4, 5, 6, 7, 8] = 6
+        expected_idx5 = np.mean(data[3:8])
+        np.testing.assert_almost_equal(result[5], expected_idx5)
+
+    def test_smoothing_maintains_signal_integrity(self):
+        """Test that smoothing preserves important signal properties"""
+        # Create a signal with known characteristics
+        data = np.concatenate([
+            np.zeros(100),
+            np.full(50, 100),  # Peak
+            np.zeros(100)
+        ])
+        
+        # Apply smoothing
+        result_5pt = gs.five_point_smooth(data)
+        result_3pt = gs.three_point_smooth(data)
+        result_ma = gs.moving_average(data, window=5)
+        
+        # All should maintain similar total counts (conservation)
+        np.testing.assert_allclose(np.sum(result_5pt), np.sum(data), rtol=0.1)
+        np.testing.assert_allclose(np.sum(result_3pt), np.sum(data), rtol=0.1)
+        np.testing.assert_allclose(np.sum(result_ma), np.sum(data), rtol=0.1)
+        
+        # Peak location should be preserved (within a few bins)
+        peak_orig = np.argmax(data)
+        peak_5pt = np.argmax(result_5pt)
+        peak_3pt = np.argmax(result_3pt)
+        peak_ma = np.argmax(result_ma)
+        
+        self.assertLess(abs(peak_5pt - peak_orig), 5)
+        self.assertLess(abs(peak_3pt - peak_orig), 5)
+        self.assertLess(abs(peak_ma - peak_orig), 5)
+
     def test_getting_data(self):
         """tests for getting data"""
         spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")

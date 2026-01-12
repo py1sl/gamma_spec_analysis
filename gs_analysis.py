@@ -54,25 +54,26 @@ def five_point_smooth(
     if len(counts) < 5:
         raise ValueError("Input array must have at least 5 elements for smoothing.")
 
-    smooth_spec = []
+    counts_array = np.asarray(counts)
+    smooth_spec = np.empty_like(counts_array, dtype=np.float64)
 
-    # first 2 elements
-    smooth_spec.extend(counts[:2])
+    # first 2 elements unchanged
+    smooth_spec[:2] = counts_array[:2]
 
-    # smooth middle elements
-    for i in range(2, len(counts) - 2):
-        val = (1.0 / 9.0) * (
-            counts[i - 2]
-            + counts[i + 2]
-            + (2 * counts[i + 1])
-            + (2 * counts[i - 1])
-            + (3 * counts[i])
-        )
-        smooth_spec.append(val)
-    # last two elements
-    smooth_spec.extend(counts[-2:])
+    # smooth middle elements using vectorized operations
+    # val = (1/9) * (counts[i-2] + counts[i+2] + 2*counts[i+1] + 2*counts[i-1] + 3*counts[i])
+    smooth_spec[2:-2] = (1.0 / 9.0) * (
+        counts_array[:-4]       # i-2
+        + counts_array[4:]      # i+2
+        + 2 * counts_array[3:-1]  # 2*counts[i+1]
+        + 2 * counts_array[1:-3]  # 2*counts[i-1]
+        + 3 * counts_array[2:-2]  # 3*counts[i]
+    )
+    
+    # last two elements unchanged
+    smooth_spec[-2:] = counts_array[-2:]
 
-    return np.array(smooth_spec)
+    return smooth_spec
 
 
 def three_point_smooth(
@@ -102,15 +103,14 @@ def three_point_smooth(
     if len(counts) < 3:
         raise ValueError("Input array must have at least 3 elements for smoothing.")
     
-    counts_array = np.array(counts)
-    smooth_spec = np.zeros(len(counts_array))
+    counts_array = np.asarray(counts, dtype=np.float64)
+    smooth_spec = np.empty_like(counts_array)
     
     # first element unchanged
     smooth_spec[0] = counts_array[0]
     
-    # smooth middle elements: average of 3 points
-    for i in range(1, len(counts_array) - 1):
-        smooth_spec[i] = (counts_array[i - 1] + counts_array[i] + counts_array[i + 1]) / 3.0
+    # smooth middle elements using vectorized operations: average of 3 points
+    smooth_spec[1:-1] = (counts_array[:-2] + counts_array[1:-1] + counts_array[2:]) / 3.0
     
     # last element unchanged
     smooth_spec[-1] = counts_array[-1]
@@ -149,20 +149,22 @@ def moving_average(
     if window < 1 or window % 2 == 0:
         raise ValueError("Window size must be a positive odd integer.")
     
-    counts_array = np.array(counts)
+    counts_array = np.asarray(counts, dtype=np.float64)
     
     if len(counts_array) < window:
         raise ValueError(f"Input array must have at least {window} elements for window size {window}.")
     
-    smooth_spec = np.zeros(len(counts_array))
+    # Use NumPy's cumulative sum for efficient moving average
+    # This avoids redundant summations in the loop-based approach
+    cumsum = np.cumsum(np.insert(counts_array, 0, 0))
     half_window = window // 2
+    smooth_spec = np.empty_like(counts_array)
     
-    # Apply moving average
     # Edge handling: use available neighbors only
     for i in range(len(counts_array)):
         start = max(0, i - half_window)
         end = min(len(counts_array), i + half_window + 1)
-        smooth_spec[i] = np.mean(counts_array[start:end])
+        smooth_spec[i] = (cumsum[end] - cumsum[start]) / (end - start)
     
     return smooth_spec
 

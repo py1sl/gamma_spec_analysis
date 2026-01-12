@@ -56,6 +56,7 @@ def get_counts(line_data: Sequence[str]) -> npt.NDArray[np.int64]:
             nchannels = nchannels_line.split()[-1]
 
             counts = line_data[startpoint : (startpoint + 1 + int(nchannels))]
+            break  # Exit loop once data is found
 
     return np.array(counts).astype(int)
 
@@ -99,8 +100,6 @@ def get_energy_fit_coefficients(
             efit = line_data[i + 1]
             efit = efit.split()
             return np.array(efit).astype(float)
-        else:
-            continue
     return None
 
 
