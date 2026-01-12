@@ -101,6 +101,94 @@ class analysis_test_case(unittest.TestCase):
         # Test with array that's too short
         short_array = [1, 2, 3, 4]
         self.assertRaises(ValueError, gs.five_point_smooth, short_array)
+    
+    def test_three_point_smooth(self):
+        """tests for 3 point smoothing function"""
+        # Test with simple data
+        counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        smoothed = gs.three_point_smooth(counts)
+        
+        # Check length is preserved
+        self.assertEqual(len(smoothed), len(counts))
+        
+        # Check first and last elements are unchanged
+        self.assertEqual(smoothed[0], counts[0])
+        self.assertEqual(smoothed[-1], counts[-1])
+        
+        # Check middle element is average of 3 points
+        # For index 1: (1 + 2 + 3) / 3 = 2.0
+        self.assertAlmostEqual(smoothed[1], 2.0)
+        # For index 5: (5 + 6 + 7) / 3 = 6.0
+        self.assertAlmostEqual(smoothed[5], 6.0)
+        
+        # Test with array that's too short
+        short_array = [1, 2]
+        self.assertRaises(ValueError, gs.three_point_smooth, short_array)
+    
+    def test_moving_average(self):
+        """tests for moving average smoothing function"""
+        # Test with simple data and default window
+        counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        smoothed = gs.moving_average(counts, window=5)
+        
+        # Check length is preserved
+        self.assertEqual(len(smoothed), len(counts))
+        
+        # Check that smoothing reduces variance
+        self.assertLessEqual(np.std(smoothed), np.std(counts))
+        
+        # Test with window=3
+        smoothed_3 = gs.moving_average(counts, window=3)
+        self.assertEqual(len(smoothed_3), len(counts))
+        
+        # Middle element should be average of 3 points
+        # For index 5: (5 + 6 + 7) / 3 = 6.0
+        self.assertAlmostEqual(smoothed_3[5], 6.0)
+        
+        # Test with invalid window size (even number)
+        self.assertRaises(ValueError, gs.moving_average, counts, window=4)
+        
+        # Test with invalid window size (negative)
+        self.assertRaises(ValueError, gs.moving_average, counts, window=-1)
+        
+        # Test with array shorter than window
+        short_array = [1, 2, 3]
+        self.assertRaises(ValueError, gs.moving_average, short_array, window=5)
+    
+    def test_exponential_moving_average(self):
+        """tests for exponential moving average smoothing function"""
+        # Test with simple data
+        counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        smoothed = gs.exponential_moving_average(counts, alpha=0.3)
+        
+        # Check length is preserved
+        self.assertEqual(len(smoothed), len(counts))
+        
+        # First element should be unchanged
+        self.assertEqual(smoothed[0], counts[0])
+        
+        # Second element: alpha * counts[1] + (1 - alpha) * smoothed[0]
+        # = 0.3 * 2 + 0.7 * 1 = 0.6 + 0.7 = 1.3
+        self.assertAlmostEqual(smoothed[1], 1.3)
+        
+        # Test with different alpha values
+        smoothed_low = gs.exponential_moving_average(counts, alpha=0.1)
+        smoothed_high = gs.exponential_moving_average(counts, alpha=0.9)
+        
+        # Lower alpha should result in smoother output
+        self.assertLessEqual(np.std(smoothed_low), np.std(smoothed_high))
+        
+        # Test with invalid alpha (too low)
+        self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=0.0)
+        
+        # Test with invalid alpha (too high)
+        self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=1.0)
+        
+        # Test with invalid alpha (negative)
+        self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=-0.1)
+        
+        # Test with invalid alpha (greater than 1)
+        self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=1.5)
 
     def test_getting_data(self):
         """tests for getting data"""
