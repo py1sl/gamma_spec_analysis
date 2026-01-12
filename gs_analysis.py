@@ -157,8 +157,8 @@ def moving_average(
     smooth_spec = np.zeros(len(counts_array))
     half_window = window // 2
     
-    # Apply moving average using convolution for efficiency
-    # Pad the edges to handle boundary conditions
+    # Apply moving average
+    # Edge handling: use available neighbors only
     for i in range(len(counts_array)):
         start = max(0, i - half_window)
         end = min(len(counts_array), i + half_window + 1)
