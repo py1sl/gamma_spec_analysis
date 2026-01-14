@@ -16,9 +16,7 @@ import numpy.typing as npt
 
 
 def get_spect(path: str) -> "ph_spectrum.PhSpectrum":
-    """gets a spectrum
-    returns the counts and the ebins
-    """
+    """gets a spectrum returns the counts and the ebins  """
     spec = gs_spe_reading.read_dollar_spe(path)
     return spec
 
@@ -43,8 +41,7 @@ def generate_ebins(spec: "ph_spectrum.PhSpectrum") -> npt.NDArray[Any]:
 
 
 def five_point_smooth(
-    counts: Union[Sequence[float], npt.NDArray[Any]],
-) -> npt.NDArray[Any]:
+    counts: Union[Sequence[float], npt.NDArray[Any]],) -> npt.NDArray[Any]:
     """5 point smoothing function.
     Recommended for use in low statistics in
     G.W. Phillips , Nucl. Instrum. Methods 153 (1978), 449
@@ -69,7 +66,7 @@ def five_point_smooth(
         + 2 * counts_array[1:-3]  # 2*counts[i-1]
         + 3 * counts_array[2:-2]  # 3*counts[i]
     )
-    
+
     # last two elements unchanged
     smooth_spec[-2:] = counts_array[-2:]
 
@@ -79,42 +76,26 @@ def five_point_smooth(
 def three_point_smooth(
     counts: Union[Sequence[float], npt.NDArray[Any]],
 ) -> npt.NDArray[Any]:
-    """3 point smoothing function using a simple moving average.
-    
+    """ 3 point smoothing function using a simple moving average.
     This function applies a 3-point smoothing filter where each point
     (except the first and last) is replaced by the average of itself
     and its two neighbors.
-    
-    Parameters
-    ----------
-    counts : array-like
-        The data array to be smoothed
-        
-    Returns
-    -------
-    numpy.ndarray
-        Smoothed array of the same length as input
-        
-    Raises
-    ------
-    ValueError
-        If input array has fewer than 3 elements
     """
     if len(counts) < 3:
         raise ValueError("Input array must have at least 3 elements for smoothing.")
-    
+
     counts_array = np.asarray(counts, dtype=np.float64)
     smooth_spec = np.empty_like(counts_array)
-    
+
     # first element unchanged
     smooth_spec[0] = counts_array[0]
-    
+
     # smooth middle elements using vectorized operations: average of 3 points
     smooth_spec[1:-1] = (counts_array[:-2] + counts_array[1:-1] + counts_array[2:]) / 3.0
-    
+
     # last element unchanged
     smooth_spec[-1] = counts_array[-1]
-    
+
     return smooth_spec
 
 
@@ -122,50 +103,31 @@ def moving_average(
     counts: Union[Sequence[float], npt.NDArray[Any]],
     window: int = 5,
 ) -> npt.NDArray[Any]:
-    """Moving average smoothing function with configurable window size.
-    
-    This function applies a moving average filter where each point is 
+    """ Moving average smoothing function with configurable window size.
+    This function applies a moving average filter where each point is
     replaced by the average of points within the window. Edge points are
     handled by using available neighbors.
-    
-    Parameters
-    ----------
-    counts : array-like
-        The data array to be smoothed
-    window : int, optional
-        Size of the moving window (must be odd). Default is 5.
-        
-    Returns
-    -------
-    numpy.ndarray
-        Smoothed array of the same length as input
-        
-    Raises
-    ------
-    ValueError
-        If window is not a positive odd integer or if input array 
-        is shorter than the window size
     """
     if window < 1 or window % 2 == 0:
         raise ValueError("Window size must be a positive odd integer.")
-    
+
     counts_array = np.asarray(counts, dtype=np.float64)
-    
+
     if len(counts_array) < window:
         raise ValueError(f"Input array must have at least {window} elements for window size {window}.")
-    
+
     # Use NumPy's cumulative sum for efficient moving average
     # This avoids redundant summations in the loop-based approach
     cumsum = np.cumsum(np.insert(counts_array, 0, 0))
     half_window = window // 2
     smooth_spec = np.empty_like(counts_array)
-    
+
     # Edge handling: use available neighbors only
     for i in range(len(counts_array)):
         start = max(0, i - half_window)
         end = min(len(counts_array), i + half_window + 1)
         smooth_spec[i] = (cumsum[end] - cumsum[start]) / (end - start)
-    
+
     return smooth_spec
 
 
@@ -174,13 +136,13 @@ def exponential_moving_average(
     alpha: float = 0.3,
 ) -> npt.NDArray[Any]:
     """Exponential moving average (EMA) smoothing function.
-    
+
     This function applies an exponential moving average where recent
     values have higher weight than older values. The smoothing factor
     alpha controls how quickly the weights decrease.
-    
+
     EMA formula: S[i] = alpha * counts[i] + (1 - alpha) * S[i-1]
-    
+
     Parameters
     ----------
     counts : array-like
@@ -189,41 +151,28 @@ def exponential_moving_average(
         Smoothing factor between 0 and 1. Default is 0.3.
         Higher alpha gives more weight to recent values (less smoothing).
         Lower alpha gives more weight to past values (more smoothing).
-        
-    Returns
-    -------
-    numpy.ndarray
-        Smoothed array of the same length as input
-        
-    Raises
-    ------
-    ValueError
-        If alpha is not between 0 and 1 (exclusive)
     """
     if alpha <= 0 or alpha >= 1:
         raise ValueError("Alpha must be between 0 and 1 (exclusive).")
-    
+
     counts_array = np.array(counts)
     smooth_spec = np.zeros(len(counts_array))
-    
+
     # Initialize with the first value
     smooth_spec[0] = counts_array[0]
-    
+
     # Apply exponential moving average
     for i in range(1, len(counts_array)):
         smooth_spec[i] = alpha * counts_array[i] + (1 - alpha) * smooth_spec[i - 1]
-    
+
     return smooth_spec
 
 
 def find_energy_pos(ebins: npt.NDArray[Any], erg: float) -> Optional[int]:
-    """Find the index of the energy bin that contains the given energy value.
-
+    """ Find the index of the energy bin that contains the given energy value.
     ebins is a NumPy array of energy bin boundaries.
-    erg is an energy value in the same units as ebins (usually keV).
+    erg is an energy value in the same units as ebins
     Returns the index of the bin containing erg, or None if erg is outside the bins.
-    Use NumPy's binary search for efficiency: find index i such that
-    ebins[i] <= erg < ebins[i + 1]. Return None if out of range.
     """
     idx = int(np.searchsorted(ebins, erg, side="right") - 1)
 
@@ -318,88 +267,60 @@ def estimate_background_trapezoid(counts: npt.NDArray[Any], c1: int, c2: int) ->
 
 def estimate_background_linear(counts: npt.NDArray[Any], c1: int, c2: int) -> float:
     """Estimate background using linear interpolation between edge points.
-    
-    This method uses a simple linear interpolation between the average of 
-    channels before c1 and after c2. The background under the peak is 
+
+    This method uses a simple linear interpolation between the average of
+    channels before c1 and after c2. The background under the peak is
     calculated by integrating the linear function across the peak region.
-    
+
     Note: The peak region is defined by Python slicing convention [c1:c2),
     meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
-    
-    Parameters
-    ----------
-    counts : numpy array
-        The spectrum counts data
-    c1 : int
-        Channel number of the start of peak (inclusive)
-    c2 : int
-        Channel number of the peak end (exclusive, as in Python slicing)
-        
-    Returns
-    -------
-    float
-        Estimated background counts under the peak
     """
     check_channel_validity(c1, c2, counts)
-    
+
     # Use two channels on each side for better statistics
     low_start = max(0, c1 - 2)
     low_count = len(counts[low_start:c1])
     low_avg = float(np.mean(counts[low_start:c1])) if low_count > 0 else 0.0
-    
+
     high_end = min(len(counts), c2 + 2)
     high_count = len(counts[c2:high_end])
     high_avg = float(np.mean(counts[c2:high_end])) if high_count > 0 else 0.0
-    
+
     # Linear interpolation: background is the trapezoidal area under the line
     # Width matches Python slicing: c2 - c1 (c2 is exclusive)
     width = c2 - c1
     bg = (low_avg + high_avg) * width / 2.0
-    
+
     return float(bg)
 
 
 def estimate_background_step(counts: npt.NDArray[Any], c1: int, c2: int) -> float:
     """Estimate background using a step function (average of edges).
-    
-    This method calculates the average of the background regions on both 
-    sides of the peak and uses this constant value as the background level 
+
+    This method calculates the average of the background regions on both
+    sides of the peak and uses this constant value as the background level
     under the peak.
-    
+
     Note: The peak region is defined by Python slicing convention [c1:c2),
     meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
-    
-    Parameters
-    ----------
-    counts : numpy array
-        The spectrum counts data
-    c1 : int
-        Channel number of the start of peak (inclusive)
-    c2 : int
-        Channel number of the peak end (exclusive, as in Python slicing)
-        
-    Returns
-    -------
-    float
-        Estimated background counts under the peak
     """
     check_channel_validity(c1, c2, counts)
-    
+
     # Use two channels on each side
     low_start = max(0, c1 - 2)
     low_count = len(counts[low_start:c1])
     low_avg = float(np.mean(counts[low_start:c1])) if low_count > 0 else 0.0
-    
+
     high_end = min(len(counts), c2 + 2)
     high_count = len(counts[c2:high_end])
     high_avg = float(np.mean(counts[c2:high_end])) if high_count > 0 else 0.0
-    
+
     # Step function: use the average of both sides
     avg_bg = (low_avg + high_avg) / 2.0
     # Width matches Python slicing: c2 - c1 (c2 is exclusive)
     width = c2 - c1
     bg = avg_bg * width
-    
+
     return float(bg)
 
 
@@ -407,56 +328,40 @@ def estimate_background_sliding_average(
     counts: npt.NDArray[Any], c1: int, c2: int, window: int = 5
 ) -> float:
     """Estimate background using a sliding window average method.
-    
-    This method calculates the background by taking a moving average in the 
+
+    This method calculates the background by taking a moving average in the
     regions adjacent to the peak, then interpolating under the peak region.
     This method is more robust to local variations in the background.
-    
+
     Note: The peak region is defined by Python slicing convention [c1:c2),
     meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
-    
-    Parameters
-    ----------
-    counts : numpy array
-        The spectrum counts data
-    c1 : int
-        Channel number of the start of peak (inclusive)
-    c2 : int
-        Channel number of the peak end (exclusive, as in Python slicing)
-    window : int, optional
-        Size of the sliding window for averaging. Default is 5.
-        
-    Returns
-    -------
-    float
-        Estimated background counts under the peak
     """
     check_channel_validity(c1, c2, counts)
-    
+
     # Determine safe windows for averaging
     low_start = max(0, c1 - window)
     low_end = c1
     high_start = c2
     high_end = min(len(counts), c2 + window)
-    
+
     # Calculate averages using available data
     if low_end > low_start:
         low_region = counts[low_start:low_end]
         low_avg = float(np.mean(low_region)) if len(low_region) > 0 else 0.0
     else:
         low_avg = 0.0
-    
+
     if high_end > high_start:
         high_region = counts[high_start:high_end]
         high_avg = float(np.mean(high_region)) if len(high_region) > 0 else 0.0
     else:
         high_avg = 0.0
-    
+
     # Linear interpolation between the two averaged regions
     # Width matches Python slicing: c2 - c1 (c2 is exclusive)
     width = c2 - c1
     bg = (low_avg + high_avg) * width / 2.0
-    
+
     return float(bg)
 
 
@@ -529,7 +434,7 @@ def peak_counts(
     ebins: npt.NDArray[Any],
 ) -> Tuple[int, float]:
     """Index is the peak array index for the peak that counts is required for
-    i.e [0], NOT the peak index itself i.e [3210]
+    i.e [0], NOT the peak index itself
     Returns the index of the peak and its calculated net count
     """
     x, y = get_peak_roi(peaks[index], smooth_counts, ebins, offset=10)
@@ -557,30 +462,30 @@ def peak_finder(
 
 
 def mariscotti_peak_finder(
-    counts: Union[Sequence[float], npt.NDArray[Any]], 
+    counts: Union[Sequence[float], npt.NDArray[Any]],
     threshold: Optional[float] = None,
     smooth_iterations: int = 2
 ) -> Tuple[npt.NDArray[Any], npt.NDArray[Any]]:
     """Identifies peaks using the Mariscotti 2nd difference method.
-    
+
     This method applies smoothing followed by second difference calculation
     to identify peaks. Peaks are identified where the second difference
     is significantly negative (below the threshold).
-    
+
     Reference: M.A. Mariscotti, Nuclear Instruments and Methods 50 (1967) 309-320
-    
+
     Parameters
     ----------
     counts : array-like
         The spectrum counts data
     threshold : float, optional
-        Threshold value for peak identification. More negative values mean 
+        Threshold value for peak identification. More negative values mean
         the second difference must be more negative to be considered a peak.
-        If None (default), automatically set to mean - 1*std of negative 
+        If None (default), automatically set to mean - 1*std of negative
         second differences for better noise rejection.
     smooth_iterations : int, optional
         Number of smoothing iterations to apply. Default is 2.
-        
+
     Returns
     -------
     tuple of (smoothed_counts, peaks)
@@ -591,19 +496,19 @@ def mariscotti_peak_finder(
     """
     if len(counts) < 5:
         raise ValueError("Input array must have at least 5 elements for Mariscotti peak finding.")
-    
+
     counts_array = np.array(counts)
-    
+
     # Apply smoothing iterations
     smoothed = counts_array.copy()
     for _ in range(smooth_iterations):
         smoothed = five_point_smooth(smoothed)
-    
+
     # Calculate second difference using vectorized operations
     # Second difference: S''[i] = S[i+1] - 2*S[i] + S[i-1]
     second_diff = np.zeros(len(smoothed))
     second_diff[1:-1] = smoothed[2:] - 2 * smoothed[1:-1] + smoothed[:-2]
-    
+
     # Auto-calculate threshold if not provided
     if threshold is None:
         # Use only negative second differences for statistics
@@ -617,20 +522,20 @@ def mariscotti_peak_finder(
             threshold = mean_neg - AUTO_THRESHOLD_FACTOR * std_neg
         else:
             threshold = 0.0
-    
+
     # Find peaks using vectorized operations
     # A peak is where second_diff[i] < threshold and it's a local minimum
     # Note: Peaks at array boundaries (index 0 or len-1) are not detected
     # as the second difference and local minimum checks require neighbors
     is_below_threshold = second_diff < threshold
     is_local_min = np.zeros(len(second_diff), dtype=bool)
-    is_local_min[1:-1] = ((second_diff[1:-1] < second_diff[:-2]) & 
+    is_local_min[1:-1] = ((second_diff[1:-1] < second_diff[:-2]) &
                           (second_diff[1:-1] < second_diff[2:]))
-    
+
     # Peaks are where both conditions are met
     peak_mask = is_below_threshold & is_local_min
     peaks = np.where(peak_mask)[0]
-    
+
     return (smoothed, peaks)
 
 
