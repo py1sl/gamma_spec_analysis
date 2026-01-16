@@ -497,7 +497,7 @@ def gaussian(
 def lognormal(
     x: npt.NDArray[Any], a: float, x0: float, sigma: float
 ) -> npt.NDArray[Any]:
-    """log-normal distribution used for curve fitting
+    """Log-normal distribution used for curve fitting
     
     Parameters
     ----------
@@ -515,9 +515,10 @@ def lognormal(
     array
         Log-normal distribution values
     """
-    # Avoid log(0) or negative values
+    # Avoid log(0) or negative values for x and x0
     x_safe = np.maximum(x, 1e-10)
-    return a * np.exp(-((np.log(x_safe / x0)) ** 2) / (2 * sigma**2))
+    x0_safe = max(x0, 1e-10)
+    return a * np.exp(-((np.log(x_safe / x0_safe)) ** 2) / (2 * sigma**2))
 
 
 def weibull(

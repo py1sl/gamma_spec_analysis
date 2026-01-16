@@ -397,7 +397,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertEqual(x[max_idx], x0)
     
     def test_lognormal(self):
-        """tests for lognormal function"""
+        """Tests for lognormal function"""
         x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
         a = 10.0
         x0 = 3.0
@@ -416,7 +416,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertEqual(len(result_safe), len(x_with_zero))
     
     def test_weibull(self):
-        """tests for Weibull function"""
+        """Tests for Weibull function"""
         x = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
         a = 10.0
         k = 2.0
@@ -435,7 +435,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertEqual(len(result_safe), len(x_with_neg))
     
     def test_polynomial(self):
-        """tests for polynomial function"""
+        """Tests for polynomial function"""
         x = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
         
         # Test linear: 2 + 3*x
@@ -473,7 +473,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertAlmostEqual(popt[2], sigma, delta=0.5)  # sigma
     
     def test_fit_peak_lognormal(self):
-        """tests for lognormal peak fitting function"""
+        """Tests for lognormal peak fitting function"""
         # Create synthetic lognormal peak data
         x = np.linspace(0.1, 10, 50)
         a = 100.0
@@ -493,7 +493,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertGreater(popt[2], 0)  # sigma should be positive
     
     def test_fit_peak_weibull(self):
-        """tests for Weibull peak fitting function"""
+        """Tests for Weibull peak fitting function"""
         # Create synthetic Weibull distribution data
         x = np.linspace(0, 10, 50)
         a = 100.0
@@ -513,7 +513,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertGreater(popt[2], 0)  # lambda should be positive
     
     def test_fit_peak_polynomial(self):
-        """tests for polynomial fitting function"""
+        """Tests for polynomial fitting function"""
         # Create synthetic polynomial data
         x = np.linspace(0, 10, 50)
         # True polynomial: 5 + 2*x + 0.5*x^2
