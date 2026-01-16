@@ -396,6 +396,63 @@ class analysis_test_case(unittest.TestCase):
         max_idx = np.argmax(result)
         self.assertEqual(x[max_idx], x0)
     
+    def test_lognormal(self):
+        """Tests for lognormal function"""
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        a = 10.0
+        x0 = 3.0
+        sigma = 0.5
+        
+        result = gs.lognormal(x, a, x0, sigma)
+        self.assertIsInstance(result, np.ndarray)
+        self.assertEqual(len(result), len(x))
+        # All values should be non-negative
+        self.assertTrue(np.all(result >= 0))
+        
+        # Test with zero and negative values (should handle safely)
+        x_with_zero = np.array([0.0, 1.0, 2.0, 3.0])
+        result_safe = gs.lognormal(x_with_zero, a, x0, sigma)
+        self.assertIsInstance(result_safe, np.ndarray)
+        self.assertEqual(len(result_safe), len(x_with_zero))
+    
+    def test_weibull(self):
+        """Tests for Weibull function"""
+        x = np.array([0.0, 1.0, 2.0, 3.0, 4.0, 5.0])
+        a = 10.0
+        k = 2.0
+        lambda_param = 2.0
+        
+        result = gs.weibull(x, a, k, lambda_param)
+        self.assertIsInstance(result, np.ndarray)
+        self.assertEqual(len(result), len(x))
+        # All values should be non-negative
+        self.assertTrue(np.all(result >= 0))
+        
+        # Test with negative x values (should handle safely)
+        x_with_neg = np.array([-1.0, 0.0, 1.0, 2.0])
+        result_safe = gs.weibull(x_with_neg, a, k, lambda_param)
+        self.assertIsInstance(result_safe, np.ndarray)
+        self.assertEqual(len(result_safe), len(x_with_neg))
+    
+    def test_polynomial(self):
+        """Tests for polynomial function"""
+        x = np.array([0.0, 1.0, 2.0, 3.0, 4.0])
+        
+        # Test linear: 2 + 3*x
+        result_linear = gs.polynomial(x, 2.0, 3.0)
+        expected_linear = np.array([2.0, 5.0, 8.0, 11.0, 14.0])
+        np.testing.assert_array_almost_equal(result_linear, expected_linear)
+        
+        # Test quadratic: 1 + 2*x + 3*x^2
+        result_quad = gs.polynomial(x, 1.0, 2.0, 3.0)
+        expected_quad = np.array([1.0, 6.0, 17.0, 34.0, 57.0])
+        np.testing.assert_array_almost_equal(result_quad, expected_quad)
+        
+        # Test constant
+        result_const = gs.polynomial(x, 5.0)
+        expected_const = np.array([5.0, 5.0, 5.0, 5.0, 5.0])
+        np.testing.assert_array_almost_equal(result_const, expected_const)
+    
     def test_fit_peak(self):
         """tests for peak fitting function"""
         # Create synthetic peak data
@@ -414,6 +471,70 @@ class analysis_test_case(unittest.TestCase):
         # Check that fitted parameters are reasonable
         self.assertAlmostEqual(popt[1], x0, delta=0.5)  # x0
         self.assertAlmostEqual(popt[2], sigma, delta=0.5)  # sigma
+    
+    def test_fit_peak_lognormal(self):
+        """Tests for lognormal peak fitting function"""
+        # Create synthetic lognormal peak data
+        x = np.linspace(0.1, 10, 50)
+        a = 100.0
+        x0 = 3.0
+        sigma = 0.5
+        y = gs.lognormal(x, a, x0, sigma)
+        # Add some noise
+        y = y + np.random.normal(0, 2, len(y))
+        y = np.maximum(y, 0)  # Ensure non-negative
+        
+        # Fit the peak
+        popt = gs.fit_peak_lognormal(x, y)
+        self.assertEqual(len(popt), 3)
+        # Check that fitted parameters are reasonable
+        self.assertGreater(popt[0], 0)  # amplitude should be positive
+        self.assertGreater(popt[1], 0)  # x0 should be positive
+        self.assertGreater(popt[2], 0)  # sigma should be positive
+    
+    def test_fit_peak_weibull(self):
+        """Tests for Weibull peak fitting function"""
+        # Create synthetic Weibull distribution data
+        x = np.linspace(0, 10, 50)
+        a = 100.0
+        k = 2.0
+        lambda_param = 3.0
+        y = gs.weibull(x, a, k, lambda_param)
+        # Add some noise
+        y = y + np.random.normal(0, 2, len(y))
+        y = np.maximum(y, 0)  # Ensure non-negative
+        
+        # Fit the peak
+        popt = gs.fit_peak_weibull(x, y)
+        self.assertEqual(len(popt), 3)
+        # Check that fitted parameters are reasonable
+        self.assertGreater(popt[0], 0)  # amplitude should be positive
+        self.assertGreater(popt[1], 0)  # k should be positive
+        self.assertGreater(popt[2], 0)  # lambda should be positive
+    
+    def test_fit_peak_polynomial(self):
+        """Tests for polynomial fitting function"""
+        # Create synthetic polynomial data
+        x = np.linspace(0, 10, 50)
+        # True polynomial: 5 + 2*x + 0.5*x^2
+        y_true = 5 + 2*x + 0.5*x**2
+        # Add some noise
+        y = y_true + np.random.normal(0, 1, len(x))
+        
+        # Fit with degree 2 (quadratic)
+        coeffs = gs.fit_peak_polynomial(x, y, degree=2)
+        self.assertEqual(len(coeffs), 3)
+        # Check that fitted coefficients are close to true values
+        self.assertAlmostEqual(coeffs[0], 5.0, delta=1.0)  # constant term
+        self.assertAlmostEqual(coeffs[1], 2.0, delta=0.5)  # linear term
+        self.assertAlmostEqual(coeffs[2], 0.5, delta=0.1)  # quadratic term
+        
+        # Test with different degrees
+        coeffs_linear = gs.fit_peak_polynomial(x, y, degree=1)
+        self.assertEqual(len(coeffs_linear), 2)
+        
+        coeffs_cubic = gs.fit_peak_polynomial(x, y, degree=3)
+        self.assertEqual(len(coeffs_cubic), 4)
     
     def test_peak_finder(self):
         """tests for peak finding function"""

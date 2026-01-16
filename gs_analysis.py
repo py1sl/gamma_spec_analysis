@@ -494,6 +494,87 @@ def gaussian(
     return a * np.exp(-((x - x0) ** 2) / (2 * sigma**2))
 
 
+def lognormal(
+    x: npt.NDArray[Any], a: float, x0: float, sigma: float
+) -> npt.NDArray[Any]:
+    """Log-normal distribution used for curve fitting
+    
+    Parameters
+    ----------
+    x : array
+        Input data points
+    a : float
+        Amplitude (peak height)
+    x0 : float
+        Location parameter (median of the distribution)
+    sigma : float
+        Shape parameter (related to standard deviation of log(x))
+    
+    Returns
+    -------
+    array
+        Log-normal distribution values
+    """
+    # Avoid log(0) or negative values for x and x0
+    x_safe = np.maximum(x, 1e-10)
+    x0_safe = max(x0, 1e-10)
+    return a * np.exp(-((np.log(x_safe / x0_safe)) ** 2) / (2 * sigma**2))
+
+
+def weibull(
+    x: npt.NDArray[Any], a: float, k: float, lambda_param: float
+) -> npt.NDArray[Any]:
+    """Weibull distribution used for curve fitting
+    
+    Parameters
+    ----------
+    x : array
+        Input data points
+    a : float
+        Amplitude (scale factor for the distribution)
+    k : float
+        Shape parameter (must be > 0)
+    lambda_param : float
+        Scale parameter (must be > 0)
+    
+    Returns
+    -------
+    array
+        Weibull distribution values
+    """
+    # Ensure x is non-negative for Weibull distribution
+    x_safe = np.maximum(x, 0)
+    # Avoid division by zero
+    lambda_safe = max(lambda_param, 1e-10)
+    k_safe = max(k, 1e-10)
+    
+    return a * (k_safe / lambda_safe) * ((x_safe / lambda_safe) ** (k_safe - 1)) * np.exp(-((x_safe / lambda_safe) ** k_safe))
+
+
+def polynomial(
+    x: npt.NDArray[Any], *coeffs: float
+) -> npt.NDArray[Any]:
+    """Polynomial function used for curve fitting
+    
+    Parameters
+    ----------
+    x : array
+        Input data points
+    *coeffs : float
+        Polynomial coefficients in ascending order (c0 + c1*x + c2*x^2 + ...)
+        Example: polynomial(x, 1, 2, 3) returns 1 + 2*x + 3*x^2
+    
+    Returns
+    -------
+    array
+        Polynomial values
+    """
+    result = np.zeros_like(x, dtype=float)
+    for i, coeff in enumerate(coeffs):
+        result += coeff * (x ** i)
+    return result
+
+
 def get_peak_roi(
     peak_pos: int, counts: npt.NDArray[Any], ebins: npt.NDArray[Any], offset: int = 10
 ) -> Tuple[npt.NDArray[Any], npt.NDArray[Any]]:
@@ -520,6 +601,94 @@ def fit_peak(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
     popt, pcov = curve_fit(gaussian, x, y, p0=[max(y), mean, sigma], maxfev=10000)
 
     return popt
+
+
+def fit_peak_lognormal(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
+    """Fits a peak to a log-normal distribution
+    
+    Parameters
+    ----------
+    x : array
+        X-axis data (energy bins or channels)
+    y : array
+        Y-axis data (counts)
+    
+    Returns
+    -------
+    array
+        Optimal parameters [a, x0, sigma] for the log-normal fit
+    """
+    # Initial parameter estimates
+    mean = sum(x * y) / sum(y)
+    sigma = np.sqrt(sum(y * (x - mean) ** 2) / sum(y))
+    
+    # Ensure x values are positive for log-normal
+    x_positive = np.maximum(x, 1e-10)
+    
+    # Initial guess: amplitude, location (median), shape parameter
+    p0 = [max(y), mean, sigma / mean if mean > 0 else 1.0]
+    
+    popt, pcov = curve_fit(lognormal, x_positive, y, p0=p0, maxfev=10000)
+    
+    return popt
+
+
+def fit_peak_weibull(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
+    """Fits a peak to a Weibull distribution
+    
+    Parameters
+    ----------
+    x : array
+        X-axis data (energy bins or channels)
+    y : array
+        Y-axis data (counts)
+    
+    Returns
+    -------
+    array
+        Optimal parameters [a, k, lambda] for the Weibull fit
+    """
+    # Initial parameter estimates
+    mean = sum(x * y) / sum(y)
+    
+    # Ensure x values are non-negative for Weibull
+    x_nonneg = np.maximum(x, 0)
+    
+    # Initial guess: amplitude, shape parameter, scale parameter
+    # k=2 gives Rayleigh-like distribution, lambda related to mean
+    p0 = [max(y), 2.0, mean]
+    
+    popt, pcov = curve_fit(weibull, x_nonneg, y, p0=p0, maxfev=10000)
+    
+    return popt
+
+
+def fit_peak_polynomial(
+    x: npt.NDArray[Any], y: npt.NDArray[Any], degree: int = 2
+) -> npt.NDArray[Any]:
+    """Fits data to a polynomial of specified degree
+    
+    Parameters
+    ----------
+    x : array
+        X-axis data (energy bins or channels)
+    y : array
+        Y-axis data (counts)
+    degree : int, optional
+        Degree of the polynomial (default: 2 for quadratic)
+    
+    Returns
+    -------
+    array
+        Optimal polynomial coefficients in ascending order [c0, c1, c2, ...]
+    """
+    # Use numpy's polyfit which returns coefficients in descending order
+    coeffs_desc = np.polyfit(x, y, degree)
+    
+    # Reverse to get ascending order for our polynomial function
+    coeffs_asc = coeffs_desc[::-1]
+    
+    return coeffs_asc
 
 
 def peak_counts(
