@@ -65,7 +65,7 @@ def get_counts(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]]
     counts: List[str] = []
 
     # Use keywords_map if provided, otherwise fall back to looping
-    if keywords_map is not None and "$DATA" in keywords_map:
+    if keywords_map is not None and "$DATA" in keywords_map and keywords_map["$DATA"]:
         i = keywords_map["$DATA"][0]  # Use first occurrence
         startpoint = i + 2
         nchannels_line = line_data[i + 1]
@@ -87,7 +87,7 @@ def get_counts(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]]
 def get_live_time(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]] = None) -> Optional[float]:
     """extracts the live time from the $ spe file"""
     # Use keywords_map if provided, otherwise fall back to looping
-    if keywords_map is not None and "$MEAS_TIM" in keywords_map:
+    if keywords_map is not None and "$MEAS_TIM" in keywords_map and keywords_map["$MEAS_TIM"]:
         i = keywords_map["$MEAS_TIM"][0]  # Use first occurrence
         live_time = line_data[i + 1]
         live_time = live_time.split()[0]
@@ -105,7 +105,7 @@ def get_live_time(line_data: Sequence[str], keywords_map: Optional[Dict[str, lis
 def get_real_time(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]] = None) -> Optional[float]:
     """extracts the real time from the $ spe file"""
     # Use keywords_map if provided, otherwise fall back to looping
-    if keywords_map is not None and "$MEAS_TIM" in keywords_map:
+    if keywords_map is not None and "$MEAS_TIM" in keywords_map and keywords_map["$MEAS_TIM"]:
         i = keywords_map["$MEAS_TIM"][0]  # Use first occurrence
         real_time = line_data[i + 1]
         real_time = real_time.split()[-1]
@@ -123,7 +123,7 @@ def get_real_time(line_data: Sequence[str], keywords_map: Optional[Dict[str, lis
 def get_start_date(line_data, keywords_map: Optional[Dict[str, list]] = None):
     """extract the measurement start date"""
     # Use keywords_map if provided, otherwise fall back to looping
-    if keywords_map is not None and "$DATE_MEA" in keywords_map:
+    if keywords_map is not None and "$DATE_MEA" in keywords_map and keywords_map["$DATE_MEA"]:
         i = keywords_map["$DATE_MEA"][0]  # Use first occurrence
         # TODO convert to appropriate date format
         measurement_date = line_data[i + 1]
@@ -144,7 +144,7 @@ def get_energy_fit_coefficients(
 ) -> Optional[npt.NDArray[np.float64]]:
     """extracts the energy fit co-efficients from the $ spe file"""
     # Use keywords_map if provided, otherwise fall back to looping
-    if keywords_map is not None and "$ENER_FIT" in keywords_map:
+    if keywords_map is not None and "$ENER_FIT" in keywords_map and keywords_map["$ENER_FIT"]:
         i = keywords_map["$ENER_FIT"][0]  # Use first occurrence
         efit = line_data[i + 1]
         efit = efit.split()
@@ -168,7 +168,7 @@ def get_mca_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]
     - 'unit': the unit string (e.g., 'keV')
     """
     # Use keywords_map if provided, otherwise fall back to looping
-    if keywords_map is not None and "$MCA_CAL" in keywords_map:
+    if keywords_map is not None and "$MCA_CAL" in keywords_map and keywords_map["$MCA_CAL"]:
         i = keywords_map["$MCA_CAL"][0]  # Use first occurrence
         try:
             order = int(line_data[i + 1].strip())
@@ -229,7 +229,7 @@ def get_shape_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, lis
     - 'coefficients': the calibration coefficients (list of floats)
     """
     # Use keywords_map if provided, otherwise fall back to looping
-    if keywords_map is not None and "$SHAPE_CAL" in keywords_map:
+    if keywords_map is not None and "$SHAPE_CAL" in keywords_map and keywords_map["$SHAPE_CAL"]:
         i = keywords_map["$SHAPE_CAL"][0]  # Use first occurrence
         try:
             order = int(line_data[i + 1].strip())
