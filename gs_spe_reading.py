@@ -2,7 +2,7 @@
 gamma spectrum analysis - spe file reading
 """
 
-from typing import Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence
 from ph_spectrum import PhSpectrum
 import numpy as np
 import numpy.typing as npt
@@ -33,6 +33,15 @@ def read_dollar_spe(path: str) -> PhSpectrum:
     real_time = get_real_time(lines)
     energy_fit_coeffs = get_energy_fit_coefficients(lines)
     date = get_start_date(lines)
+    mca_cal = get_mca_cal(lines)
+    shape_cal = get_shape_cal(lines)
+
+    # Build keywords dictionary with optional calibration data
+    keywords = {}
+    if mca_cal is not None:
+        keywords['mca_cal'] = mca_cal
+    if shape_cal is not None:
+        keywords['shape_cal'] = shape_cal
 
     spec = PhSpectrum(
         counts=counts,
@@ -41,6 +50,7 @@ def read_dollar_spe(path: str) -> PhSpectrum:
         energy_fit_coefficients=energy_fit_coeffs,
         file_path=path,
         start_time=date,
+        keywords=keywords,
     )
 
     return spec
@@ -100,6 +110,65 @@ def get_energy_fit_coefficients(
             efit = line_data[i + 1]
             efit = efit.split()
             return np.array(efit).astype(float)
+    return None
+
+
+def get_mca_cal(line_data: Sequence[str]) -> Optional[Dict[str, Any]]:
+    """extracts the MCA calibration data from the $ spe file
+    
+    Returns a dictionary with the calibration data:
+    - 'order': the order of the calibration polynomial (int)
+    - 'coefficients': the calibration coefficients (list of floats)
+    - 'unit': the unit string (e.g., 'keV')
+    """
+    for i, line in enumerate(line_data):
+        if line.strip().startswith("$MCA_CAL:"):
+            try:
+                order = int(line_data[i + 1].strip())
+                coeff_line = line_data[i + 2].strip()
+                parts = coeff_line.split()
+                # Extract coefficients (all numeric values) and unit (last non-numeric)
+                coefficients = []
+                unit = None
+                for part in parts:
+                    try:
+                        coefficients.append(float(part))
+                    except ValueError:
+                        # This is the unit string
+                        unit = part
+                        break
+                
+                return {
+                    'order': order,
+                    'coefficients': coefficients,
+                    'unit': unit
+                }
+            except (IndexError, ValueError):
+                return None
+    return None
+
+
+def get_shape_cal(line_data: Sequence[str]) -> Optional[Dict[str, Any]]:
+    """extracts the shape calibration data from the $ spe file
+    
+    Returns a dictionary with the calibration data:
+    - 'order': the order of the calibration polynomial (int)
+    - 'coefficients': the calibration coefficients (list of floats)
+    """
+    for i, line in enumerate(line_data):
+        if line.strip().startswith("$SHAPE_CAL:"):
+            try:
+                order = int(line_data[i + 1].strip())
+                coeff_line = line_data[i + 2].strip()
+                parts = coeff_line.split()
+                coefficients = [float(part) for part in parts]
+                
+                return {
+                    'order': order,
+                    'coefficients': coefficients
+                }
+            except (IndexError, ValueError):
+                return None
     return None
 
 

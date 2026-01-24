@@ -62,6 +62,44 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
         self.assertEqual(e_data[1], 0.365473)
         self.assertEqual(spec.peaks, [])
 
+    def test_get_mca_cal(self):
+        """tests related to reading MCA calibration data"""
+        data = gsr.read_file("../test_data/Co_60_raised_1.Spe")
+        mca_cal = gsr.get_mca_cal(data)
+        self.assertIsNotNone(mca_cal)
+        self.assertEqual(mca_cal['order'], 3)
+        self.assertEqual(len(mca_cal['coefficients']), 3)
+        self.assertAlmostEqual(mca_cal['coefficients'][0], 0.323476, places=5)
+        self.assertAlmostEqual(mca_cal['coefficients'][1], 0.365473, places=5)
+        self.assertAlmostEqual(mca_cal['coefficients'][2], 3.057753e-8, places=13)
+        self.assertEqual(mca_cal['unit'], 'keV')
+
+    def test_get_shape_cal(self):
+        """tests related to reading shape calibration data"""
+        data = gsr.read_file("../test_data/Co_60_raised_1.Spe")
+        shape_cal = gsr.get_shape_cal(data)
+        self.assertIsNotNone(shape_cal)
+        self.assertEqual(shape_cal['order'], 3)
+        self.assertEqual(len(shape_cal['coefficients']), 3)
+        self.assertAlmostEqual(shape_cal['coefficients'][0], 1.604150, places=5)
+        self.assertAlmostEqual(shape_cal['coefficients'][1], 2.041100e-3, places=8)
+        self.assertAlmostEqual(shape_cal['coefficients'][2], -3.766970e-7, places=12)
+
+    def test_read_dollar_spe_with_keywords(self):
+        """testing that keywords are populated in the PhSpectrum object"""
+        spec = gsr.read_dollar_spe("../test_data/Co_60_raised_1.Spe")
+        self.assertIn('mca_cal', spec.keywords)
+        self.assertIn('shape_cal', spec.keywords)
+        
+        mca_cal = spec.keywords['mca_cal']
+        self.assertEqual(mca_cal['order'], 3)
+        self.assertEqual(mca_cal['unit'], 'keV')
+        self.assertEqual(len(mca_cal['coefficients']), 3)
+        
+        shape_cal = spec.keywords['shape_cal']
+        self.assertEqual(shape_cal['order'], 3)
+        self.assertEqual(len(shape_cal['coefficients']), 3)
+
 
 if __name__ == "__main__":
     unittest.main()
