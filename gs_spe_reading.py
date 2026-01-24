@@ -28,10 +28,10 @@ def read_dollar_spe(path: str) -> PhSpectrum:
     """read an ascii $spe format file"""
     lines = read_file(path)
     validate_dollar_spe_file(lines)
-    
+
     # Get all keywords and their line indices in a single pass
     keywords_map = get_dollar_keywords(lines)
-    
+
     counts = get_counts(lines, keywords_map)
     live_time = get_live_time(lines, keywords_map)
     real_time = get_real_time(lines, keywords_map)
@@ -63,14 +63,14 @@ def read_dollar_spe(path: str) -> PhSpectrum:
 def get_counts(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]] = None) -> npt.NDArray[np.int64]:
     """extracts the counts from the $ spe file"""
     counts: List[str] = []
-    
+
     # Use keywords_map if provided, otherwise fall back to looping
     if keywords_map is not None and "$DATA" in keywords_map:
         i = keywords_map["$DATA"][0]  # Use first occurrence
         startpoint = i + 2
         nchannels_line = line_data[i + 1]
         nchannels = nchannels_line.split()[-1]
-        counts = line_data[startpoint : (startpoint + 1 + int(nchannels))]
+        counts = line_data[startpoint:(startpoint + 1 + int(nchannels))]
     else:
         # Fallback to original looping logic
         for i, line in enumerate(line_data):
@@ -78,7 +78,7 @@ def get_counts(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]]
                 startpoint = i + 2
                 nchannels_line = line_data[i + 1]
                 nchannels = nchannels_line.split()[-1]
-                counts = line_data[startpoint : (startpoint + 1 + int(nchannels))]
+                counts = line_data[startpoint:(startpoint + 1 + int(nchannels))]
                 break  # Exit loop once data is found
 
     return np.array(counts).astype(int)
@@ -161,7 +161,7 @@ def get_energy_fit_coefficients(
 
 def get_mca_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]] = None) -> Optional[Dict[str, Any]]:
     """extracts the MCA calibration data from the $ spe file
-    
+
     Returns a dictionary with the calibration data:
     - 'order': the order of the calibration polynomial (int)
     - 'coefficients': the calibration coefficients (list of floats)
@@ -184,7 +184,7 @@ def get_mca_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]
                 except ValueError:
                     # This is a non-numeric value, capture it as the unit
                     unit = part
-            
+
             return {
                 'order': order,
                 'coefficients': coefficients,
@@ -210,7 +210,7 @@ def get_mca_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]
                         except ValueError:
                             # This is a non-numeric value, capture it as the unit
                             unit = part
-                    
+
                     return {
                         'order': order,
                         'coefficients': coefficients,
@@ -223,7 +223,7 @@ def get_mca_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]
 
 def get_shape_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, list]] = None) -> Optional[Dict[str, Any]]:
     """extracts the shape calibration data from the $ spe file
-    
+
     Returns a dictionary with the calibration data:
     - 'order': the order of the calibration polynomial (int)
     - 'coefficients': the calibration coefficients (list of floats)
@@ -243,7 +243,7 @@ def get_shape_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, lis
                 except ValueError:
                     # Skip non-numeric values
                     pass
-            
+
             return {
                 'order': order,
                 'coefficients': coefficients
@@ -266,7 +266,7 @@ def get_shape_cal(line_data: Sequence[str], keywords_map: Optional[Dict[str, lis
                         except ValueError:
                             # Skip non-numeric values
                             pass
-                    
+
                     return {
                         'order': order,
                         'coefficients': coefficients
