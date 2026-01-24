@@ -134,9 +134,8 @@ def get_mca_cal(line_data: Sequence[str]) -> Optional[Dict[str, Any]]:
                     try:
                         coefficients.append(float(part))
                     except ValueError:
-                        # This is the unit string
+                        # This is a non-numeric value, assume it's the unit
                         unit = part
-                        break
                 
                 return {
                     'order': order,
