@@ -127,14 +127,15 @@ def get_mca_cal(line_data: Sequence[str]) -> Optional[Dict[str, Any]]:
                 order = int(line_data[i + 1].strip())
                 coeff_line = line_data[i + 2].strip()
                 parts = coeff_line.split()
-                # Extract coefficients (all numeric values) and unit (last non-numeric)
+                # Extract coefficients (all numeric values) and unit (any non-numeric value)
+                # If multiple non-numeric values exist, the last one is kept as the unit
                 coefficients = []
                 unit = None
                 for part in parts:
                     try:
                         coefficients.append(float(part))
                     except ValueError:
-                        # This is a non-numeric value, assume it's the unit
+                        # This is a non-numeric value, capture it as the unit
                         unit = part
                 
                 return {
