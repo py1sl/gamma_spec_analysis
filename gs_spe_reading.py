@@ -160,7 +160,14 @@ def get_shape_cal(line_data: Sequence[str]) -> Optional[Dict[str, Any]]:
                 order = int(line_data[i + 1].strip())
                 coeff_line = line_data[i + 2].strip()
                 parts = coeff_line.split()
-                coefficients = [float(part) for part in parts]
+                # Extract only numeric values as coefficients
+                coefficients = []
+                for part in parts:
+                    try:
+                        coefficients.append(float(part))
+                    except ValueError:
+                        # Skip non-numeric values
+                        pass
                 
                 return {
                     'order': order,
