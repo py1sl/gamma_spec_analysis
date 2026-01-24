@@ -15,14 +15,16 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
     def test_read_times(self):
         """tests related to measurement times and  dates"""
         data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
-        self.assertEqual(gsr.get_live_time(data), 326)
-        self.assertEqual(gsr.get_real_time(data), 431)
-        self.assertEqual(gsr.get_start_date(data), "02/25/2020 14:24:52")
+        keywords_map = gsr.get_dollar_keywords(data)
+        self.assertEqual(gsr.get_live_time(data, keywords_map), 326)
+        self.assertEqual(gsr.get_real_time(data, keywords_map), 431)
+        self.assertEqual(gsr.get_start_date(data, keywords_map), "02/25/2020 14:24:52")
 
     def test_get_fits(self):
         """tests related to the energy, efficiency and shape calibration"""
         data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
-        e_data = gsr.get_energy_fit_coefficients(data)
+        keywords_map = gsr.get_dollar_keywords(data)
+        e_data = gsr.get_energy_fit_coefficients(data, keywords_map)
         self.assertEqual(len(e_data), 2)
         self.assertEqual(e_data[0], 0.323476)
         self.assertEqual(e_data[1], 0.365473)
@@ -30,7 +32,8 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
     def test_get_counts(self):
         """tests about reading to count data"""
         data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
-        counts = gsr.get_counts(data)
+        keywords_map = gsr.get_dollar_keywords(data)
+        counts = gsr.get_counts(data, keywords_map)
         self.assertEqual(len(counts), 8192)
         self.assertEqual(counts[0], 0)
         self.assertEqual(counts[-1], 0)
@@ -65,7 +68,8 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
     def test_get_mca_cal(self):
         """tests related to reading MCA calibration data"""
         data = gsr.read_file("../test_data/Co_60_raised_1.Spe")
-        mca_cal = gsr.get_mca_cal(data)
+        keywords_map = gsr.get_dollar_keywords(data)
+        mca_cal = gsr.get_mca_cal(data, keywords_map)
         self.assertIsNotNone(mca_cal)
         self.assertEqual(mca_cal['order'], 3)
         self.assertEqual(len(mca_cal['coefficients']), 3)
@@ -77,7 +81,8 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
     def test_get_shape_cal(self):
         """tests related to reading shape calibration data"""
         data = gsr.read_file("../test_data/Co_60_raised_1.Spe")
-        shape_cal = gsr.get_shape_cal(data)
+        keywords_map = gsr.get_dollar_keywords(data)
+        shape_cal = gsr.get_shape_cal(data, keywords_map)
         self.assertIsNotNone(shape_cal)
         self.assertEqual(shape_cal['order'], 3)
         self.assertEqual(len(shape_cal['coefficients']), 3)
@@ -90,12 +95,12 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
         spec = gsr.read_dollar_spe("../test_data/Co_60_raised_1.Spe")
         self.assertIn('mca_cal', spec.keywords)
         self.assertIn('shape_cal', spec.keywords)
-        
+
         mca_cal = spec.keywords['mca_cal']
         self.assertEqual(mca_cal['order'], 3)
         self.assertEqual(mca_cal['unit'], 'keV')
         self.assertEqual(len(mca_cal['coefficients']), 3)
-        
+
         shape_cal = spec.keywords['shape_cal']
         self.assertEqual(shape_cal['order'], 3)
         self.assertEqual(len(shape_cal['coefficients']), 3)
