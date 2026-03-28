@@ -7,11 +7,35 @@ import numpy as np
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
+from enum import IntEnum
 
 import ph_spectrum
 
 from typing import List, Optional, Sequence, Tuple, Union, Any
 import numpy.typing as npt
+
+
+class BackgroundMethod(IntEnum):
+    """Selector for background estimation methods used in :func:`calc_bg`."""
+
+    TRAPEZOID = 1
+    """Simple trapezoid background from Maestro."""
+    LINEAR = 2
+    """Linear interpolation method."""
+    STEP = 3
+    """Step function method (average of edges)."""
+    SLIDING_AVERAGE = 4
+    """Sliding window average method."""
+
+
+class EfficiencyFitType(IntEnum):
+    """Selector for the detector efficiency fitting equation used in
+    :func:`calc_energy_efficiency`."""
+
+    LOG = 1
+    """Logarithmic fit: ``eff = exp(a0 + a1*ln(E) + a2*ln(E)^2 + ...)``."""
+    INVERSE_ENERGY = 2
+    """Inverse-energy fit: ``eff = exp(a0 + a1/E + a2/E^2 + ...)``."""
 
 
 def generate_ebins(spec: "ph_spectrum.PhSpectrum") -> npt.NDArray[Any]:
@@ -225,29 +249,31 @@ def find_energy_pos(ebins: npt.NDArray[Any], erg: float) -> Optional[int]:
 
 
 def calc_energy_efficiency(
-    energy: float, eff_coeff: Sequence[float], eff_fit: int = 1
+    energy: float,
+    eff_coeff: Sequence[float],
+    eff_fit: EfficiencyFitType = EfficiencyFitType.LOG,
 ) -> float:
     """Detector efficiency calculation
-    energy : Energy to calcuate det eff
+    energy : Energy to calculate det eff
     eff_coeff : An array with the coefficients for the energy fit
         the length is not fixed, the length of the array determines the
         number of terms in the expansion
-    eff_fit : Determines what type of fit to use
+    eff_fit : Determines what type of fit to use (EfficiencyFitType enum)
     returns eff - Value of efficiency for the input
                   energy using the selected fitting eqn
     """
     # eff_fit used to choose between calibration fit eqns
     # energy to be in MeV
 
-    if eff_fit not in {1, 2}:
+    if eff_fit not in set(EfficiencyFitType):
         raise ValueError("The selected eff_fit is not valid")
 
     log_eff = eff_coeff[0]
 
     for i in range(1, len(eff_coeff)):
-        if eff_fit == 1:
+        if eff_fit == EfficiencyFitType.LOG:
             log_eff += eff_coeff[i] * np.power(np.log(energy), i)
-        elif eff_fit == 2:
+        elif eff_fit == EfficiencyFitType.INVERSE_ENERGY:
             log_eff += eff_coeff[i] * np.power(1 / energy, i)
 
     eff = np.exp(log_eff)
@@ -255,26 +281,31 @@ def calc_energy_efficiency(
     return eff
 
 
-def calc_bg(counts: npt.NDArray[Any], c1: int, c2: int, m: int = 1) -> float:
+def calc_bg(
+    counts: npt.NDArray[Any],
+    c1: int,
+    c2: int,
+    m: BackgroundMethod = BackgroundMethod.TRAPEZOID,
+) -> float:
     """Returns background under a peak
     spec is an numpy array of the counts values
     c1 is channel number of the start of peak
     c2 is channel number of the peak end
-    m is a selector for different  background calculation methods
-    m == 1 is a simple trapezoid background from Maestro
-    m == 2 is a linear interpolation method
-    m == 3 is a step function method (average of edges)
-    m == 4 is a sliding window average method
+    m is a BackgroundMethod enum selector for background calculation methods
+    BackgroundMethod.TRAPEZOID is a simple trapezoid background from Maestro
+    BackgroundMethod.LINEAR is a linear interpolation method
+    BackgroundMethod.STEP is a step function method (average of edges)
+    BackgroundMethod.SLIDING_AVERAGE is a sliding window average method
     """
 
     if check_channel_validity(c1, c2, counts):
-        if m == 1:
+        if m == BackgroundMethod.TRAPEZOID:
             bg = estimate_background_trapezoid(counts, c1, c2)
-        elif m == 2:
+        elif m == BackgroundMethod.LINEAR:
             bg = estimate_background_linear(counts, c1, c2)
-        elif m == 3:
+        elif m == BackgroundMethod.STEP:
             bg = estimate_background_step(counts, c1, c2)
-        elif m == 4:
+        elif m == BackgroundMethod.SLIDING_AVERAGE:
             bg = estimate_background_sliding_average(counts, c1, c2)
         else:
             raise ValueError("m is not set to a valid method id")
@@ -470,7 +501,12 @@ def check_channel_validity(c1: int, c2: int, counts: npt.NDArray[Any]) -> bool:
     return True
 
 
-def net_counts(counts: npt.NDArray[Any], c1: int, c2: int, m: int = 1) -> float:
+def net_counts(
+    counts: npt.NDArray[Any],
+    c1: int,
+    c2: int,
+    m: BackgroundMethod = BackgroundMethod.TRAPEZOID,
+) -> float:
     """Calculates net counts between two channels"""
     bg = calc_bg(counts, c1, c2, m)
     gc = gross_count(counts, c1, c2)

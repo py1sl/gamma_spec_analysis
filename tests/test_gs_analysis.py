@@ -3,6 +3,7 @@ from unittest.mock import patch, mock_open, call
 import numpy as np
 import matplotlib.pyplot as plt
 import gs_analysis as gs
+from gs_analysis import BackgroundMethod, EfficiencyFitType
 import gs_spe_reading
 import ph_spectrum
 
@@ -78,15 +79,15 @@ class analysis_test_case(unittest.TestCase):
         """tests for efficency function fitting"""
         self.assertRaises(ValueError, gs.calc_energy_efficiency, 1.3, [1, 1, 1, 1], 5)
 
-        # Test eff_fit=1 (logarithmic fit)
+        # Test EfficiencyFitType.LOG (logarithmic fit)
         eff_coeff = [1.0, 0.5, 0.1]
         energy = 1.0  # MeV
-        eff = gs.calc_energy_efficiency(energy, eff_coeff, eff_fit=1)
+        eff = gs.calc_energy_efficiency(energy, eff_coeff, eff_fit=EfficiencyFitType.LOG)
         self.assertIsInstance(eff, float)
         self.assertGreater(eff, 0)
 
-        # Test eff_fit=2 (inverse energy fit)
-        eff = gs.calc_energy_efficiency(energy, eff_coeff, eff_fit=2)
+        # Test EfficiencyFitType.INVERSE_ENERGY (inverse energy fit)
+        eff = gs.calc_energy_efficiency(energy, eff_coeff, eff_fit=EfficiencyFitType.INVERSE_ENERGY)
         self.assertIsInstance(eff, float)
         self.assertGreater(eff, 0)
 
@@ -269,8 +270,8 @@ class analysis_test_case(unittest.TestCase):
         """tests for background calculation functions"""
         counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 
-        # Test calc_bg with valid parameters (method 1 - trapezoid)
-        bg = gs.calc_bg(counts, 2, 7, m=1)
+        # Test calc_bg with valid parameters (BackgroundMethod.TRAPEZOID)
+        bg = gs.calc_bg(counts, 2, 7, m=BackgroundMethod.TRAPEZOID)
         self.assertIsInstance(bg, float)
         self.assertGreaterEqual(bg, 0)
 
@@ -287,8 +288,8 @@ class analysis_test_case(unittest.TestCase):
         bg_end = gs.estimate_background_trapezoid(counts, 7, 9)
         self.assertIsInstance(bg_end, float)
 
-        # Test method 2 - linear interpolation
-        bg_linear = gs.calc_bg(counts, 2, 7, m=2)
+        # Test BackgroundMethod.LINEAR - linear interpolation
+        bg_linear = gs.calc_bg(counts, 2, 7, m=BackgroundMethod.LINEAR)
         self.assertIsInstance(bg_linear, float)
         self.assertGreaterEqual(bg_linear, 0)
 
@@ -297,8 +298,8 @@ class analysis_test_case(unittest.TestCase):
         self.assertIsInstance(bg_linear_direct, float)
         self.assertGreaterEqual(bg_linear_direct, 0)
 
-        # Test method 3 - step function
-        bg_step = gs.calc_bg(counts, 2, 7, m=3)
+        # Test BackgroundMethod.STEP - step function
+        bg_step = gs.calc_bg(counts, 2, 7, m=BackgroundMethod.STEP)
         self.assertIsInstance(bg_step, float)
         self.assertGreaterEqual(bg_step, 0)
 
@@ -307,8 +308,8 @@ class analysis_test_case(unittest.TestCase):
         self.assertIsInstance(bg_step_direct, float)
         self.assertGreaterEqual(bg_step_direct, 0)
 
-        # Test method 4 - sliding window average
-        bg_sliding = gs.calc_bg(counts, 2, 7, m=4)
+        # Test BackgroundMethod.SLIDING_AVERAGE - sliding window average
+        bg_sliding = gs.calc_bg(counts, 2, 7, m=BackgroundMethod.SLIDING_AVERAGE)
         self.assertIsInstance(bg_sliding, float)
         self.assertGreaterEqual(bg_sliding, 0)
 
@@ -333,10 +334,10 @@ class analysis_test_case(unittest.TestCase):
         c1, c2 = 40, 60
 
         # All methods should give reasonable backgrounds
-        bg_trap = gs.calc_bg(counts, c1, c2, m=1)
-        bg_linear = gs.calc_bg(counts, c1, c2, m=2)
-        bg_step = gs.calc_bg(counts, c1, c2, m=3)
-        bg_sliding = gs.calc_bg(counts, c1, c2, m=4)
+        bg_trap = gs.calc_bg(counts, c1, c2, m=BackgroundMethod.TRAPEZOID)
+        bg_linear = gs.calc_bg(counts, c1, c2, m=BackgroundMethod.LINEAR)
+        bg_step = gs.calc_bg(counts, c1, c2, m=BackgroundMethod.STEP)
+        bg_sliding = gs.calc_bg(counts, c1, c2, m=BackgroundMethod.SLIDING_AVERAGE)
 
         # All should be positive
         self.assertGreater(bg_trap, 0)
@@ -359,7 +360,7 @@ class analysis_test_case(unittest.TestCase):
         counts = np.array([5, 10, 15, 20, 25, 30, 35, 40, 45, 50])
 
         # Test at spectrum edges for all methods
-        for method in [1, 2, 3, 4]:
+        for method in BackgroundMethod:
             # At start of spectrum
             bg_start = gs.calc_bg(counts, 0, 3, m=method)
             self.assertIsInstance(bg_start, float)
@@ -380,7 +381,7 @@ class analysis_test_case(unittest.TestCase):
         counts = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
 
         # Test net_counts function
-        nc = gs.net_counts(counts, 2, 7, m=1)
+        nc = gs.net_counts(counts, 2, 7, m=BackgroundMethod.TRAPEZOID)
         self.assertIsInstance(nc, float)
 
     def test_gaussian(self):

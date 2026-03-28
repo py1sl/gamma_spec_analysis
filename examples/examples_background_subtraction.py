@@ -5,10 +5,10 @@ Example script demonstrating the different background subtraction methods
 in gs_analysis.
 
 This script shows how to use the four available background subtraction methods:
-1. Trapezoid method (m=1) - Maestro-style trapezoid background
-2. Linear interpolation (m=2) - Linear interpolation between edge averages
-3. Step function (m=3) - Constant background from average of edges
-4. Sliding window average (m=4) - Moving average in adjacent regions
+1. BackgroundMethod.TRAPEZOID - Maestro-style trapezoid background
+2. BackgroundMethod.LINEAR    - Linear interpolation between edge averages
+3. BackgroundMethod.STEP      - Constant background from average of edges
+4. BackgroundMethod.SLIDING_AVERAGE - Moving average in adjacent regions
 
 Author: Generated for gamma_spec_analysis
 """
@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import numpy as np
 import matplotlib.pyplot as plt
 import gs_analysis as gs
+from gs_analysis import BackgroundMethod
 import tempfile
 
 
@@ -63,20 +64,20 @@ def compare_background_methods(counts, c1, c2):
         Dictionary containing results for each method
     """
     methods = {
-        1: "Trapezoid (Maestro)",
-        2: "Linear Interpolation",
-        3: "Step Function",
-        4: "Sliding Window Average"
+        BackgroundMethod.TRAPEZOID: "Trapezoid (Maestro)",
+        BackgroundMethod.LINEAR: "Linear Interpolation",
+        BackgroundMethod.STEP: "Step Function",
+        BackgroundMethod.SLIDING_AVERAGE: "Sliding Window Average"
     }
 
     results = {}
 
-    for method_id, method_name in methods.items():
-        bg = gs.calc_bg(counts, c1, c2, m=method_id)
-        net = gs.net_counts(counts, c1, c2, m=method_id)
+    for method, method_name in methods.items():
+        bg = gs.calc_bg(counts, c1, c2, m=method)
+        net = gs.net_counts(counts, c1, c2, m=method)
         gross = gs.gross_count(counts, c1, c2)
 
-        results[method_id] = {
+        results[method] = {
             'name': method_name,
             'background': bg,
             'net_counts': net,
@@ -108,13 +109,13 @@ def visualize_background_methods(counts, c1, c2, title="Background Subtraction M
     fig.suptitle(title, fontsize=16)
 
     methods = {
-        1: ("Trapezoid (Maestro)", axes[0, 0]),
-        2: ("Linear Interpolation", axes[0, 1]),
-        3: ("Step Function", axes[1, 0]),
-        4: ("Sliding Window Average", axes[1, 1])
+        BackgroundMethod.TRAPEZOID: ("Trapezoid (Maestro)", axes[0, 0]),
+        BackgroundMethod.LINEAR: ("Linear Interpolation", axes[0, 1]),
+        BackgroundMethod.STEP: ("Step Function", axes[1, 0]),
+        BackgroundMethod.SLIDING_AVERAGE: ("Sliding Window Average", axes[1, 1])
     }
 
-    for method_id, (method_name, ax) in methods.items():
+    for method, (method_name, ax) in methods.items():
         # Plot the spectrum
         ax.plot(x, counts, 'b-', label='Spectrum', linewidth=1)
 
@@ -122,8 +123,8 @@ def visualize_background_methods(counts, c1, c2, title="Background Subtraction M
         ax.axvspan(c1, c2, alpha=0.2, color='yellow', label='Peak region')
 
         # Calculate and show background
-        bg_total = gs.calc_bg(counts, c1, c2, m=method_id)
-        net = gs.net_counts(counts, c1, c2, m=method_id)
+        bg_total = gs.calc_bg(counts, c1, c2, m=method)
+        net = gs.net_counts(counts, c1, c2, m=method)
 
         # Estimate background per channel for visualization
         width = c2 - c1
@@ -184,8 +185,8 @@ def main():
         print(f"{'Method':<30} {'Background':<15} {'Net Counts':<15}")
         print("-" * 70)
 
-        for method_id in sorted(results.keys()):
-            res = results[method_id]
+        for method in sorted(results.keys(), key=lambda m: m.value):
+            res = results[method]
             print(f"{res['name']:<30} {res['background']:<15.2f} {res['net_counts']:<15.2f}")
 
         print()
@@ -194,19 +195,19 @@ def main():
     print("Method Descriptions:")
     print("=" * 70)
     print()
-    print("1. Trapezoid (Maestro):")
+    print(f"{BackgroundMethod.TRAPEZOID.value}. Trapezoid (Maestro):")
     print("   Uses up to 2 channels before and after the peak region.")
     print("   Implements the Maestro software's trapezoid background method.")
     print()
-    print("2. Linear Interpolation:")
+    print(f"{BackgroundMethod.LINEAR.value}. Linear Interpolation:")
     print("   Averages 2 channels on each side of the peak and linearly")
     print("   interpolates the background under the peak region.")
     print()
-    print("3. Step Function:")
+    print(f"{BackgroundMethod.STEP.value}. Step Function:")
     print("   Uses the average of background regions on both sides as a")
     print("   constant background level under the peak.")
     print()
-    print("4. Sliding Window Average:")
+    print(f"{BackgroundMethod.SLIDING_AVERAGE.value}. Sliding Window Average:")
     print("   Uses a moving average window (default 5 channels) in regions")
     print("   adjacent to the peak for more robust background estimation.")
     print()

@@ -7,6 +7,7 @@ import numpy as np
 import numpy.typing as npt
 from ph_spectrum import PhSpectrum
 import gs_analysis
+from gs_analysis import EfficiencyFitType
 
 # Physical constants
 ELECTRON_REST_MASS_KEV = 511.0  # Electron rest mass energy in keV
@@ -123,7 +124,7 @@ def create_spectrum_from_peaks(
     fwhm_factor: float = 0.02,
     spec_name: str = "synthetic_spectrum",
     efficiency_coefficients: Optional[Sequence[float]] = None,
-    efficiency_fit_type: int = 1,
+    efficiency_fit_type: EfficiencyFitType = EfficiencyFitType.LOG,
     include_compton: bool = False,
     compton_fraction: float = 0.5,
 ) -> PhSpectrum:
@@ -149,9 +150,9 @@ def create_spectrum_from_peaks(
     efficiency_coefficients : Sequence[float], optional
         Efficiency fit coefficients to adjust peak heights based on energy.
         If provided, peak heights will be scaled by the detector efficiency.
-    efficiency_fit_type : int, optional
-        Type of efficiency fit to use (1 or 2, default 1).
-        1: logarithmic fit, 2: inverse energy fit.
+    efficiency_fit_type : EfficiencyFitType, optional
+        Type of efficiency fit to use (default EfficiencyFitType.LOG).
+        EfficiencyFitType.LOG: logarithmic fit, EfficiencyFitType.INVERSE_ENERGY: inverse energy fit.
         See gs_analysis.calc_energy_efficiency for details.
     include_compton : bool, optional
         If True, generate Compton continuum for each peak (default False)
