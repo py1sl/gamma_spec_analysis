@@ -33,11 +33,8 @@ class PhSpectrum:
             self.num_channels = int(self.counts.size)
 
         # Normalize ebin to numpy array (use float dtype)
-        self.ebin = (
-            np.asarray(self.ebin, dtype=np.float64)
-            if self.ebin
-            else np.array([], dtype=np.float64)
-        )
+        ebin_input = self.ebin if self.ebin is not None else []
+        self.ebin = np.asarray(ebin_input, dtype=np.float64)
 
     def to_dict(self) -> Dict[str, Any]:
         """Return a JSON-serializable dict (converts ndarrays to lists)."""
