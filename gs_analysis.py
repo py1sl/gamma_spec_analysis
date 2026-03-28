@@ -8,19 +8,10 @@ from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from scipy.signal import find_peaks
 
-import gs_spe_reading
 import ph_spectrum
 
 from typing import Optional, Sequence, Tuple, Union, Any
 import numpy.typing as npt
-
-
-def get_spect(path: str) -> "ph_spectrum.PhSpectrum":
-    """gets a spectrum
-    returns the counts and the ebins
-    """
-    spec = gs_spe_reading.read_dollar_spe(path)
-    return spec
 
 
 def generate_ebins(spec: "ph_spectrum.PhSpectrum") -> npt.NDArray[Any]:
@@ -679,4 +670,4 @@ def plot_spec(
 
 
 if __name__ == "__main__":
-    get_spect()
+    pass
