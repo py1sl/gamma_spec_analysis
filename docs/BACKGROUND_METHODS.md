@@ -140,7 +140,7 @@ for method_id, method_name in methods.items():
 
 ### Example Script
 
-A comprehensive example script is available in `examples_background_subtraction.py` that demonstrates:
+A comprehensive example script is available in `examples/examples_background_subtraction.py` that demonstrates:
 - Creating synthetic spectra
 - Comparing all methods
 - Visualizing the differences
@@ -148,7 +148,7 @@ A comprehensive example script is available in `examples_background_subtraction.
 
 Run it with:
 ```bash
-python examples_background_subtraction.py
+python examples/examples_background_subtraction.py
 ```
 
 ## Choosing the Right Method

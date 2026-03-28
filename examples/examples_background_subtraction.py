@@ -13,11 +13,16 @@ This script shows how to use the four available background subtraction methods:
 Author: Generated for gamma_spec_analysis
 """
 
+import sys
+import os
+
+# Add parent directory to path so gs_analysis can be imported
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 import numpy as np
 import matplotlib.pyplot as plt
 import gs_analysis as gs
 import tempfile
-import os
 
 
 def create_synthetic_spectrum():
