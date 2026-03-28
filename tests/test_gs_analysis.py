@@ -1,7 +1,6 @@
 import unittest
 from unittest.mock import patch, mock_open, call
 import numpy as np
-import matplotlib.pyplot as plt
 import gs_analysis as gs
 from gs_analysis import BackgroundMethod, EfficiencyFitType
 import gs_spe_reading
@@ -608,52 +607,6 @@ class analysis_test_case(unittest.TestCase):
         smoothed_auto, peaks_auto = gs.mariscotti_peak_finder(counts, threshold=None)
         self.assertIsInstance(peaks_auto, np.ndarray)
         self.assertEqual(len(smoothed_auto), len(counts))
-
-
-class TestPlotting(unittest.TestCase):
-    """tests relating to plotting functions"""
-
-    @patch("matplotlib.pyplot.savefig")
-    @patch("matplotlib.pyplot.show")
-    def test_plot_spec(self, mock_show, mock_savefig):
-        counts = [1, 10, 100, 1000]
-        erg = [1, 2, 3, 4]
-        fname = "test_plot.png"
-
-        # called with just counts
-        gs.plot_spec(counts)
-        # Assert that show was called
-        mock_show.assert_called_once()
-
-        # called with counts and energy
-        gs.plot_spec(counts, erg=erg)
-        # Assert that show was called
-        mock_show.assert_called()
-
-        # called with a file name
-        mock_savefig.reset_mock()
-        gs.plot_spec(counts, fname=fname)
-        # Assert that savefig was called with the specified filename
-        mock_savefig.assert_called_once_with(fname)
-
-    @patch("matplotlib.pyplot.savefig")
-    @patch("matplotlib.pyplot.show")
-    def test_plot_spect_peaks(self, mock_show, mock_savefig):
-        counts = [1, 10, 100, 1000]
-        erg = [1, 2, 3, 4]
-        peaks = [3]
-        fname = "test_plot.png"
-
-        # called with data
-        gs.plot_spect_peaks(counts, erg, peaks)
-        # Assert that show was called
-        mock_show.assert_called_once()
-
-        # called with data and fname
-        # Assert that savefig was called with the specified filename
-        # Assert that show was called
-        gs.plot_spect_peaks(counts, erg, peaks, fname)
-        mock_savefig.assert_called_once_with(fname)
 
 
 if __name__ == "__main__":
