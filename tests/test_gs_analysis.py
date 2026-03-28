@@ -3,6 +3,7 @@ from unittest.mock import patch, mock_open, call
 import numpy as np
 import matplotlib.pyplot as plt
 import gs_analysis as gs
+import gs_spe_reading
 import ph_spectrum
 
 
@@ -43,7 +44,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertFalse(gs.find_energy_pos(ebins, 0))
 
         # generating ebins
-        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
         ebins = gs.generate_ebins(spec)
         self.assertEqual(len(ebins), len(spec.counts))
 
@@ -65,7 +66,7 @@ class analysis_test_case(unittest.TestCase):
 
     def test_roi(self):
         """tests for extracting a region of interest"""
-        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
         ebins = gs.generate_ebins(spec)
         peak_ebin, data = gs.get_peak_roi(230, spec.counts, ebins)
         self.assertEqual(len(data), 20)
@@ -92,7 +93,7 @@ class analysis_test_case(unittest.TestCase):
     def test_smoothing(self):
         """tests related to smoothing functions"""
         # testing 5 point smooth
-        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
         smoothed = gs.five_point_smooth(spec.counts)
         self.assertEqual(len(smoothed), len(spec.counts))
         self.assertEqual(smoothed[0], spec.counts[0])
@@ -261,7 +262,7 @@ class analysis_test_case(unittest.TestCase):
 
     def test_getting_data(self):
         """tests for getting data"""
-        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
         self.assertTrue(len(spec.counts) > 0)
 
     def test_background_calculation(self):
@@ -417,7 +418,7 @@ class analysis_test_case(unittest.TestCase):
 
     def test_peak_finder(self):
         """tests for peak finding function"""
-        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
 
         # Run peak finder with reasonable parameters
         smoothed, peaks = gs.peak_finder(spec.counts, prominence=100, wlen=50)
@@ -429,7 +430,7 @@ class analysis_test_case(unittest.TestCase):
 
     def test_peak_counts(self):
         """tests for peak counts calculation"""
-        spec = gs.get_spect("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
         ebins = gs.generate_ebins(spec)
         smoothed, peaks = gs.peak_finder(spec.counts, prominence=100, wlen=50)
 
