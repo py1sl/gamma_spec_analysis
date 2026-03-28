@@ -416,6 +416,91 @@ class analysis_test_case(unittest.TestCase):
         self.assertAlmostEqual(popt[1], x0, delta=0.5)  # x0
         self.assertAlmostEqual(popt[2], sigma, delta=0.5)  # sigma
 
+    def test_double_gaussian(self):
+        """tests for double_gaussian function"""
+        x = np.linspace(0, 20, 100)
+        a1, x01, sigma1 = 100.0, 5.0, 1.0
+        a2, x02, sigma2 = 80.0, 15.0, 1.2
+        y = gs.double_gaussian(x, a1, x01, sigma1, a2, x02, sigma2)
+
+        # Output array has the correct length
+        self.assertEqual(len(y), len(x))
+        # Values are non-negative
+        self.assertTrue(np.all(y >= 0))
+        # Maximum is near one of the two peak centres
+        peak_x = x[np.argmax(y)]
+        self.assertTrue(abs(peak_x - x01) < 1.5 or abs(peak_x - x02) < 1.5)
+        # Equals sum of individual Gaussians
+        y1 = gs.gaussian(x, a1, x01, sigma1)
+        y2 = gs.gaussian(x, a2, x02, sigma2)
+        np.testing.assert_array_almost_equal(y, y1 + y2)
+
+    def test_fit_doublet(self):
+        """tests for doublet fitting function"""
+        np.random.seed(42)
+        x = np.linspace(0, 20, 200)
+        a1, x01, sigma1 = 100.0, 7.0, 0.8
+        a2, x02, sigma2 = 90.0, 10.0, 0.9
+        y = gs.double_gaussian(x, a1, x01, sigma1, a2, x02, sigma2)
+        y = y + np.random.normal(0, 1, len(y))
+
+        popt = gs.fit_doublet(x, y)
+
+        # Returns 6 parameters
+        self.assertEqual(len(popt), 6)
+        # Recovered centres should be close to the true values (within 1 unit)
+        centres = sorted([popt[1], popt[4]])
+        self.assertAlmostEqual(centres[0], min(x01, x02), delta=1.0)
+        self.assertAlmostEqual(centres[1], max(x01, x02), delta=1.0)
+
+    def test_fit_doublet_fallback(self):
+        """tests fit_doublet when no two distinct local maxima exist"""
+        np.random.seed(7)
+        # Construct a smooth doublet with no visible saddle point (heavy overlap)
+        x = np.linspace(0, 10, 100)
+        a1, x01, sigma1 = 100.0, 4.5, 1.5
+        a2, x02, sigma2 = 100.0, 5.5, 1.5
+        y = gs.double_gaussian(x, a1, x01, sigma1, a2, x02, sigma2)
+
+        popt = gs.fit_doublet(x, y)
+        self.assertEqual(len(popt), 6)
+        # Amplitudes should be positive
+        self.assertGreater(popt[0], 0)
+        self.assertGreater(popt[3], 0)
+
+    def test_identify_doublets(self):
+        """tests for identify_doublets function"""
+        # Build a simple energy bin array: channel i -> i keV
+        ebins = np.arange(0, 500, dtype=float)
+
+        # Three peaks: channels 100 (100 keV), 107 (107 keV), 300 (300 keV)
+        peaks = np.array([100, 107, 300])
+
+        # With max_separation=10 keV, (100,107) is a doublet; (107,300) is not
+        doublets = gs.identify_doublets(peaks, ebins, max_separation=10.0)
+        self.assertEqual(len(doublets), 1)
+        self.assertEqual(doublets[0], (100, 107))
+
+        # With max_separation=5 keV, no doublets
+        doublets_none = gs.identify_doublets(peaks, ebins, max_separation=5.0)
+        self.assertEqual(len(doublets_none), 0)
+
+        # With max_separation=200 keV, both adjacent pairs qualify
+        doublets_all = gs.identify_doublets(peaks, ebins, max_separation=200.0)
+        self.assertEqual(len(doublets_all), 2)
+
+    def test_identify_doublets_empty(self):
+        """tests identify_doublets with empty or single-peak input"""
+        ebins = np.arange(0, 500, dtype=float)
+
+        # Empty peaks list
+        doublets = gs.identify_doublets([], ebins)
+        self.assertEqual(doublets, [])
+
+        # Single peak – no pairs to compare
+        doublets = gs.identify_doublets([200], ebins)
+        self.assertEqual(doublets, [])
+
     def test_peak_finder(self):
         """tests for peak finding function"""
         spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")

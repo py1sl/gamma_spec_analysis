@@ -10,7 +10,7 @@ from scipy.signal import find_peaks
 
 import ph_spectrum
 
-from typing import Optional, Sequence, Tuple, Union, Any
+from typing import List, Optional, Sequence, Tuple, Union, Any
 import numpy.typing as npt
 
 
@@ -485,6 +485,38 @@ def gaussian(
     return a * np.exp(-((x - x0) ** 2) / (2 * sigma**2))
 
 
+def double_gaussian(
+    x: npt.NDArray[Any],
+    a1: float, x01: float, sigma1: float,
+    a2: float, x02: float, sigma2: float,
+) -> npt.NDArray[Any]:
+    """Sum of two Gaussians used for doublet curve fitting.
+
+    Parameters
+    ----------
+    x : array-like
+        Input x values
+    a1 : float
+        Amplitude of first Gaussian
+    x01 : float
+        Center of first Gaussian
+    sigma1 : float
+        Standard deviation of first Gaussian
+    a2 : float
+        Amplitude of second Gaussian
+    x02 : float
+        Center of second Gaussian
+    sigma2 : float
+        Standard deviation of second Gaussian
+
+    Returns
+    -------
+    numpy.ndarray
+        Sum of two Gaussian values at positions x
+    """
+    return gaussian(x, a1, x01, sigma1) + gaussian(x, a2, x02, sigma2)
+
+
 def get_peak_roi(
     peak_pos: int, counts: npt.NDArray[Any], ebins: npt.NDArray[Any], offset: int = 10
 ) -> Tuple[npt.NDArray[Any], npt.NDArray[Any]]:
@@ -511,6 +543,111 @@ def fit_peak(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
     popt, pcov = curve_fit(gaussian, x, y, p0=[max(y), mean, sigma], maxfev=10000)
 
     return popt
+
+
+def fit_doublet(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
+    """Fits a doublet (two partially overlapping peaks) to a double Gaussian.
+
+    Initial estimates for each peak center are derived from the two largest
+    local maxima in the ROI.  If fewer than two local maxima exist the ROI
+    is split in half and the maximum of each half is used instead.
+
+    Parameters
+    ----------
+    x : array-like
+        Energy bin positions for the region of interest
+    y : array-like
+        Counts for the region of interest
+
+    Returns
+    -------
+    numpy.ndarray
+        Array of 6 fitted parameters [a1, x01, sigma1, a2, x02, sigma2]
+
+    Raises
+    ------
+    RuntimeError
+        If the curve fit fails to converge
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    # Estimate a global sigma from the weighted spread of the data
+    total = np.sum(y)
+    if total != 0:
+        mean_est = np.sum(x * y) / total
+        sigma_est = np.sqrt(np.sum(y * (x - mean_est) ** 2) / total)
+        if sigma_est == 0:
+            sigma_est = (x[-1] - x[0]) / 6.0
+    else:
+        mean_est = (x[0] + x[-1]) / 2.0
+        sigma_est = (x[-1] - x[0]) / 6.0
+
+    # Find local maxima by comparing each point with its neighbours
+    local_max_idx = [i for i in range(1, len(y) - 1) if y[i] > y[i - 1] and y[i] > y[i + 1]]
+
+    if len(local_max_idx) >= 2:
+        # Use the two highest local maxima, ordered by x position
+        local_max_idx.sort(key=lambda i: y[i], reverse=True)
+        i1, i2 = sorted(local_max_idx[:2])
+        x01_est, a1_est = x[i1], float(y[i1])
+        x02_est, a2_est = x[i2], float(y[i2])
+    else:
+        # Fall back: split the ROI in half, guarding against empty slices
+        mid = max(1, min(len(x) // 2, len(x) - 1))
+        i1 = int(np.argmax(y[:mid]))
+        i2 = int(np.argmax(y[mid:])) + mid
+        x01_est, a1_est = x[i1], float(y[i1])
+        x02_est, a2_est = x[i2], float(y[i2])
+
+    half_sigma = sigma_est / 2.0
+    p0 = [a1_est, x01_est, half_sigma, a2_est, x02_est, half_sigma]
+
+    popt, pcov = curve_fit(double_gaussian, x, y, p0=p0, maxfev=10000)
+
+    return popt
+
+
+def identify_doublets(
+    peaks: Sequence[int],
+    ebins: npt.NDArray[Any],
+    max_separation: float = 10.0,
+) -> List[Tuple[int, int]]:
+    """Identifies pairs of adjacent peaks that are close enough to form a doublet.
+
+    Iterates over consecutive pairs of peaks and returns those whose energy
+    separation is less than or equal to *max_separation*.
+
+    Parameters
+    ----------
+    peaks : array-like
+        Array of peak channel indices, as returned by :func:`peak_finder` or
+        :func:`mariscotti_peak_finder`.  The array is assumed to be sorted in
+        ascending channel order.
+    ebins : array-like
+        Energy bin array mapping channel indices to energy values.
+    max_separation : float, optional
+        Maximum energy separation between two adjacent peaks for the pair to
+        be classified as a doublet, in the same units as *ebins*.
+        Default is 10.0.
+
+    Returns
+    -------
+    list of tuple of int
+        List of ``(peak1, peak2)`` channel-index pairs where the two peaks
+        are within *max_separation* of each other in energy.
+    """
+    peaks_array = np.asarray(peaks)
+    ebins_array = np.asarray(ebins)
+
+    doublets = []
+    for i in range(len(peaks_array) - 1):
+        energy1 = ebins_array[peaks_array[i]]
+        energy2 = ebins_array[peaks_array[i + 1]]
+        if abs(energy2 - energy1) <= max_separation:
+            doublets.append((int(peaks_array[i]), int(peaks_array[i + 1])))
+
+    return doublets
 
 
 def peak_counts(
