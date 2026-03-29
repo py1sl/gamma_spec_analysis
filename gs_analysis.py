@@ -38,22 +38,32 @@ class EfficiencyFitType(IntEnum):
 
 
 def generate_ebins(spec: "ph_spectrum.PhSpectrum") -> npt.NDArray[Any]:
-    """generate the energy bins boundaries from the energy fit co-efficients"""
-    e_co_effs = spec.energy_fit_coefficients
+    """Generate energy bin boundaries from the energy fit coefficients.
 
-    # ensure spec num_channels is set
-    if spec.num_channels == 0:
-        spec.num_channels = len(spec.counts)
+    .. deprecated::
+        Prefer calling :meth:`~ph_spectrum.PhSpectrum.generate_ebins` directly
+        on the spectrum object.  This module-level wrapper is kept for
+        backward compatibility.
 
-    x = np.arange(spec.num_channels)
+    Parameters
+    ----------
+    spec:
+        A :class:`~ph_spectrum.PhSpectrum` with ``energy_fit_coefficients``
+        set to a two-element sequence ``[a0, a1]``.
 
-    # check validity of the co-efficients array
-    if len(e_co_effs) == 2:
-        ebins = e_co_effs[0] + x * e_co_effs[1]
-    else:
-        raise ValueError("The selected energy co-eff array is not valid")
+    Returns
+    -------
+    numpy.ndarray
+        Energy values for each channel (length equal to
+        ``spec.num_channels``).
 
-    return ebins
+    Raises
+    ------
+    ValueError
+        If ``spec.energy_fit_coefficients`` is ``None`` or does not contain
+        exactly two coefficients.
+    """
+    return spec.generate_ebins()
 
 
 def five_point_smooth(
