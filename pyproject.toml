@@ -29,6 +29,7 @@ dev = [
 py-modules = [
     "gs_analysis",
     "gs_creator",
+    "gs_multispectral_scaling",
     "gs_plotting",
     "gs_spe_reading",
     "ph_spectrum",
