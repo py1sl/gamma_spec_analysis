@@ -65,6 +65,71 @@ def _spe_time(dt: datetime) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Tests: PhSpectrum.__add__
+# ---------------------------------------------------------------------------
+
+class TestPhSpectrumAdd(unittest.TestCase):
+
+    def test_operator_sums_counts(self):
+        """``spec1 + spec2`` must return element-wise summed counts."""
+        s1 = _make_flat_spectrum(counts_per_channel=100)
+        s2 = _make_flat_spectrum(counts_per_channel=200)
+        result = s1 + s2
+        np.testing.assert_array_equal(result.counts, np.full(512, 300, dtype=np.int64))
+
+    def test_operator_sums_live_time(self):
+        s1 = _make_flat_spectrum(live_time=60.0)
+        s2 = _make_flat_spectrum(live_time=40.0)
+        self.assertAlmostEqual((s1 + s2).live_time, 100.0)
+
+    def test_operator_sums_real_time(self):
+        s1 = _make_flat_spectrum(real_time=70.0)
+        s2 = _make_flat_spectrum(real_time=30.0)
+        self.assertAlmostEqual((s1 + s2).real_time, 100.0)
+
+    def test_live_time_none_when_either_missing(self):
+        s1 = _make_flat_spectrum(live_time=60.0)
+        s2 = PhSpectrum(counts=np.ones(512, dtype=np.int64))
+        self.assertIsNone((s1 + s2).live_time)
+
+    def test_real_time_none_when_either_missing(self):
+        s1 = _make_flat_spectrum(real_time=70.0)
+        s2 = PhSpectrum(counts=np.ones(512, dtype=np.int64))
+        self.assertIsNone((s1 + s2).real_time)
+
+    def test_energy_coefficients_from_left_operand(self):
+        s1 = _make_flat_spectrum(energy_coeffs=(0.0, 2.0))
+        s2 = _make_flat_spectrum(energy_coeffs=(1.0, 3.0))
+        result = s1 + s2
+        self.assertEqual(list(result.energy_fit_coefficients), [0.0, 2.0])
+
+    def test_raises_on_channel_mismatch(self):
+        s1 = _make_flat_spectrum(n_channels=512)
+        s2 = _make_flat_spectrum(n_channels=1024)
+        with self.assertRaises(ValueError):
+            _ = s1 + s2
+
+    def test_returns_not_implemented_for_non_spectrum(self):
+        """Adding a non-PhSpectrum must return NotImplemented."""
+        s = _make_flat_spectrum()
+        result = s.__add__(42)
+        self.assertIs(result, NotImplemented)
+
+    def test_result_counts_dtype_int64(self):
+        s1 = _make_flat_spectrum(counts_per_channel=10)
+        s2 = _make_flat_spectrum(counts_per_channel=20)
+        self.assertEqual((s1 + s2).counts.dtype, np.int64)
+
+    def test_chained_addition(self):
+        """``s1 + s2 + s3`` should equal the sum of all three."""
+        s1 = _make_flat_spectrum(counts_per_channel=1)
+        s2 = _make_flat_spectrum(counts_per_channel=2)
+        s3 = _make_flat_spectrum(counts_per_channel=3)
+        result = s1 + s2 + s3
+        np.testing.assert_array_equal(result.counts, np.full(512, 6, dtype=np.int64))
+
+
+# ---------------------------------------------------------------------------
 # Tests: add_spectra
 # ---------------------------------------------------------------------------
 

@@ -15,9 +15,8 @@ one after another, enabling:
 
 from __future__ import annotations
 
-import re
 from datetime import datetime
-from typing import List, Optional, Sequence, Tuple
+from typing import List, Sequence, Tuple
 
 import numpy as np
 import numpy.typing as npt
@@ -57,13 +56,12 @@ def _exponential_decay(t: npt.NDArray[np.float64], a0: float, lam: float) -> npt
 # Public API
 # ---------------------------------------------------------------------------
 
-def add_spectra(spectra: List["ph_spectrum.PhSpectrum"]) -> "ph_spectrum.PhSpectrum":
+def add_spectra(spectra: List[ph_spectrum.PhSpectrum]) -> ph_spectrum.PhSpectrum:
     """Sum a list of spectra to produce a single co-added spectrum.
 
-    All spectra must have the same number of channels.  The counts arrays are
-    summed element-wise; ``live_time`` and ``real_time`` are summed when all
-    spectra carry those values.  Energy calibration coefficients are taken
-    from the first spectrum in the list.
+    Delegates to :meth:`~ph_spectrum.PhSpectrum.__add__` for each pairwise
+    addition, so all rules documented there apply.  Energy calibration
+    coefficients are taken from the first spectrum in the list.
 
     Parameters
     ----------
@@ -85,39 +83,10 @@ def add_spectra(spectra: List["ph_spectrum.PhSpectrum"]) -> "ph_spectrum.PhSpect
     if len(spectra) == 0:
         raise ValueError("spectra list must not be empty")
 
-    n_channels = spectra[0].num_channels
-    for i, spec in enumerate(spectra[1:], start=1):
-        if spec.num_channels != n_channels:
-            raise ValueError(
-                f"All spectra must have the same number of channels; "
-                f"spectrum 0 has {n_channels}, spectrum {i} has {spec.num_channels}"
-            )
-
-    summed_counts = np.zeros(n_channels, dtype=np.int64)
-    for spec in spectra:
-        summed_counts += np.asarray(spec.counts, dtype=np.int64)
-
-    # Sum timing information when all spectra carry it
-    if all(s.live_time is not None for s in spectra):
-        total_live: Optional[float] = float(sum(s.live_time for s in spectra))  # type: ignore[arg-type]
-    else:
-        total_live = None
-
-    if all(s.real_time is not None for s in spectra):
-        total_real: Optional[float] = float(sum(s.real_time for s in spectra))  # type: ignore[arg-type]
-    else:
-        total_real = None
-
-    first = spectra[0]
-    return ph_spectrum.PhSpectrum(
-        spec_name=first.spec_name,
-        counts=summed_counts,
-        live_time=total_live,
-        real_time=total_real,
-        energy_fit_coefficients=first.energy_fit_coefficients,
-        efficiency_fit_coefficients=first.efficiency_fit_coefficients,
-        start_time=first.start_time,
-    )
+    result = spectra[0]
+    for spec in spectra[1:]:
+        result = result + spec
+    return result
 
 
 def get_elapsed_times(spectra: List["ph_spectrum.PhSpectrum"]) -> npt.NDArray[np.float64]:
