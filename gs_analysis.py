@@ -5,7 +5,7 @@ gamma spectrum analysis
 
 import numpy as np
 from scipy.optimize import curve_fit
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, lfilter, lfilter_zi
 from enum import IntEnum
 
 import ph_spectrum
@@ -227,15 +227,24 @@ def exponential_moving_average(
     if alpha <= 0 or alpha >= 1:
         raise ValueError("Alpha must be between 0 and 1 (exclusive).")
 
-    counts_array = np.array(counts)
-    smooth_spec = np.zeros(len(counts_array))
+    # lfilter requires float input; float64 matches the output dtype of
+    # the original np.zeros-based implementation.
+    counts_array = np.asarray(counts, dtype=np.float64)
 
-    # Initialize with the first value
+    if counts_array.size == 0:
+        return counts_array.copy()
+
+    # Represent EMA as a first-order IIR filter:
+    #   y[n] = alpha * x[n] + (1 - alpha) * y[n-1]
+    # Transfer function: b = [alpha], a = [1, -(1-alpha)]
+    # Initial conditions are set so the first output equals the first input,
+    # matching the original loop behaviour (smooth_spec[0] = counts[0]).
+    b = np.array([alpha])
+    a = np.array([1.0, -(1.0 - alpha)])
+    zi = lfilter_zi(b, a) * counts_array[0]
+    smooth_spec, _ = lfilter(b, a, counts_array, zi=zi)
+    # Preserve exact first-element equality (matches loop definition: S[0] = x[0]).
     smooth_spec[0] = counts_array[0]
-
-    # Apply exponential moving average
-    for i in range(1, len(counts_array)):
-        smooth_spec[i] = alpha * counts_array[i] + (1 - alpha) * smooth_spec[i - 1]
 
     return smooth_spec
 
@@ -335,11 +344,11 @@ def estimate_background_trapezoid(counts: npt.NDArray[Any], c1: int, c2: int) ->
 
     # Safe low window:
     low_start = max(0, c1 - 2)
-    low_sum = float(sum(counts[low_start:c1])) if c1 > low_start else 0.0
+    low_sum = float(np.sum(counts[low_start:c1])) if c1 > low_start else 0.0
 
     # Safe high window:
     high_end = min(len(counts), c2 + 2)
-    high_sum = float(sum(counts[c2:high_end])) if high_end > c2 else 0.0
+    high_sum = float(np.sum(counts[c2:high_end])) if high_end > c2 else 0.0
 
     width = c2 - c1 + 1
     bg = (low_sum + high_sum) * (width / 6.0)
@@ -494,7 +503,7 @@ def estimate_background_sliding_average(
 def gross_count(counts: npt.NDArray[Any], c1: int, c2: int) -> int:
     """Returns total number of counts in a spectrum between two channels"""
     if check_channel_validity(c1, c2, counts):
-        return int(sum(counts[c1:c2]))
+        return int(np.sum(counts[c1:c2]))
     return 0
 
 
@@ -582,8 +591,8 @@ def get_peak_roi(
 
 def fit_peak(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
     """fits a peak to a gaussian"""
-    mean = sum(x * y) / sum(y)
-    sigma = np.sqrt(sum(y * (x - mean) ** 2) / sum(y))
+    mean = np.sum(x * y) / np.sum(y)
+    sigma = np.sqrt(np.sum(y * (x - mean) ** 2) / np.sum(y))
 
     popt, pcov = curve_fit(gaussian, x, y, p0=[max(y), mean, sigma], maxfev=10000)
 
