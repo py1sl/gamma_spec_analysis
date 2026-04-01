@@ -205,7 +205,7 @@ def main():
     x_roi = np.arange(c1, c2, dtype=float)
     y_roi = counts[c1:c2].astype(float)
     try:
-        popt = gs.fit_peak(x_roi, y_roi)
+        popt, _pcov = gs.fit_peak(x_roi, y_roi)
         output_file = os.path.join(temp_dir, "peak_roi.png")
         gsp.plot_peak_roi(
             x_roi, y_roi,

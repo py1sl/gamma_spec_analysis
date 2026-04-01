@@ -410,7 +410,7 @@ class analysis_test_case(unittest.TestCase):
         y = y + np.random.normal(0, 1, len(y))
 
         # Fit the peak
-        popt = gs.fit_peak(x, y)
+        popt, pcov = gs.fit_peak(x, y)
         self.assertEqual(len(popt), 3)
         # Check that fitted parameters are reasonable
         self.assertAlmostEqual(popt[1], x0, delta=0.5)  # x0
@@ -444,7 +444,7 @@ class analysis_test_case(unittest.TestCase):
         y = gs.double_gaussian(x, a1, x01, sigma1, a2, x02, sigma2)
         y = y + np.random.normal(0, 1, len(y))
 
-        popt = gs.fit_doublet(x, y)
+        popt, pcov = gs.fit_doublet(x, y)
 
         # Returns 6 parameters
         self.assertEqual(len(popt), 6)
@@ -462,7 +462,7 @@ class analysis_test_case(unittest.TestCase):
         a2, x02, sigma2 = 100.0, 5.5, 1.5
         y = gs.double_gaussian(x, a1, x01, sigma1, a2, x02, sigma2)
 
-        popt = gs.fit_doublet(x, y)
+        popt, pcov = gs.fit_doublet(x, y)
         self.assertEqual(len(popt), 6)
         # Amplitudes should be positive
         self.assertGreater(popt[0], 0)
@@ -607,6 +607,143 @@ class analysis_test_case(unittest.TestCase):
         smoothed_auto, peaks_auto = gs.mariscotti_peak_finder(counts, threshold=None)
         self.assertIsInstance(peaks_auto, np.ndarray)
         self.assertEqual(len(smoothed_auto), len(counts))
+
+
+    def test_fit_peak_returns_pcov(self):
+        """fit_peak must return (popt, pcov) and pcov must be a 3x3 matrix."""
+        np.random.seed(0)
+        x = np.linspace(0, 10, 50)
+        y = gs.gaussian(x, 100.0, 5.0, 1.0) + np.random.normal(0, 1, 50)
+        popt, pcov = gs.fit_peak(x, y)
+        self.assertEqual(len(popt), 3)
+        self.assertEqual(pcov.shape, (3, 3))
+        # Variances must be non-negative
+        self.assertTrue(np.all(np.diag(pcov) >= 0))
+
+    def test_fit_doublet_returns_pcov(self):
+        """fit_doublet must return (popt, pcov) and pcov must be a 6x6 matrix."""
+        np.random.seed(42)
+        x = np.linspace(0, 20, 200)
+        y = gs.double_gaussian(x, 100.0, 7.0, 0.8, 90.0, 10.0, 0.9)
+        y = y + np.random.normal(0, 2, 200)
+        popt, pcov = gs.fit_doublet(x, y)
+        self.assertEqual(len(popt), 6)
+        self.assertEqual(pcov.shape, (6, 6))
+
+    def test_gaussian_area(self):
+        """gaussian_area must equal a * |sigma| * sqrt(2*pi)."""
+        a, sigma = 50.0, 2.0
+        expected = a * sigma * np.sqrt(2.0 * np.pi)
+        self.assertAlmostEqual(gs.gaussian_area(a, sigma), expected)
+        # Negative sigma (allowed: absolute value is used)
+        self.assertAlmostEqual(gs.gaussian_area(a, -sigma), expected)
+
+    def test_gaussian_area_uncertainty(self):
+        """gaussian_area_uncertainty must return a non-negative float."""
+        np.random.seed(2)
+        x = np.linspace(0, 10, 60)
+        y = gs.gaussian(x, 80.0, 5.0, 1.0) + np.random.normal(0, 0.5, 60)
+        popt, pcov = gs.fit_peak(x, y)
+        a, _x0, sigma = popt
+        unc = gs.gaussian_area_uncertainty(a, sigma, pcov)
+        self.assertIsInstance(unc, float)
+        self.assertGreaterEqual(unc, 0.0)
+
+    def test_fit_peak_area(self):
+        """fit_peak_area must return a positive area with non-negative uncertainty."""
+        np.random.seed(3)
+        x = np.linspace(0, 10, 60)
+        a, x0, sigma = 100.0, 5.0, 1.0
+        y = gs.gaussian(x, a, x0, sigma) + np.random.normal(0, 1, 60)
+        area, unc = gs.fit_peak_area(x, y)
+        expected_area = gs.gaussian_area(a, sigma)
+        # Area should be close to analytic expectation
+        self.assertAlmostEqual(area, expected_area, delta=expected_area * 0.1)
+        self.assertGreaterEqual(unc, 0.0)
+
+    def test_fit_doublet_areas(self):
+        """fit_doublet_areas must return sensible areas and non-negative uncertainties."""
+        np.random.seed(4)
+        x = np.linspace(0, 20, 200)
+        a1, x01, s1 = 100.0, 7.0, 0.8
+        a2, x02, s2 = 90.0, 10.0, 0.9
+        y = gs.double_gaussian(x, a1, x01, s1, a2, x02, s2)
+        y = y + np.random.normal(0, 1, 200)
+        (area1, unc1), (area2, unc2) = gs.fit_doublet_areas(x, y)
+        self.assertGreater(area1, 0.0)
+        self.assertGreater(area2, 0.0)
+        self.assertGreaterEqual(unc1, 0.0)
+        self.assertGreaterEqual(unc2, 0.0)
+
+    def test_estimate_background_trapezoid_uncertainty(self):
+        """Trapezoid background uncertainty must be non-negative."""
+        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
+        unc = gs.estimate_background_trapezoid_uncertainty(counts, 3, 7)
+        self.assertGreaterEqual(unc, 0.0)
+
+    def test_estimate_background_linear_uncertainty(self):
+        """Linear background uncertainty must be non-negative."""
+        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
+        unc = gs.estimate_background_linear_uncertainty(counts, 3, 7)
+        self.assertGreaterEqual(unc, 0.0)
+
+    def test_estimate_background_step_uncertainty(self):
+        """Step background uncertainty must be non-negative."""
+        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
+        unc = gs.estimate_background_step_uncertainty(counts, 3, 7)
+        self.assertGreaterEqual(unc, 0.0)
+
+    def test_estimate_background_sliding_average_uncertainty(self):
+        """Sliding-average background uncertainty must be non-negative."""
+        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
+        unc = gs.estimate_background_sliding_average_uncertainty(counts, 3, 7)
+        self.assertGreaterEqual(unc, 0.0)
+
+    def test_calc_bg_uncertainty_dispatches(self):
+        """calc_bg_uncertainty must dispatch to all four methods without error."""
+        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
+        for method in gs.BackgroundMethod:
+            unc = gs.calc_bg_uncertainty(counts, 3, 7, method)
+            self.assertGreaterEqual(unc, 0.0)
+        # Invalid method raises ValueError
+        self.assertRaises(ValueError, gs.calc_bg_uncertainty, counts, 3, 7, 99)
+
+    def test_net_counts_uncertainty(self):
+        """net_counts_uncertainty must return (net, uncertainty) with uncertainty >= 0."""
+        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
+        for method in gs.BackgroundMethod:
+            net, unc = gs.net_counts_uncertainty(counts, 3, 7, method)
+            self.assertIsInstance(net, float)
+            self.assertGreaterEqual(unc, 0.0)
+
+    def test_net_counts_uncertainty_poisson_scaling(self):
+        """Uncertainty grows with signal strength (Poisson: sigma ~ sqrt(N))."""
+        low_counts = np.array([1, 1, 1, 5, 10, 8, 5, 1, 1, 1], dtype=float)
+        high_counts = low_counts * 100.0
+        _, unc_low = gs.net_counts_uncertainty(low_counts, 3, 7)
+        _, unc_high = gs.net_counts_uncertainty(high_counts, 3, 7)
+        self.assertGreater(unc_high, unc_low)
+        # Uncertainty should scale roughly as sqrt(N): sqrt(100) = 10x
+        self.assertAlmostEqual(unc_high / unc_low, 10.0, delta=2.0)
+
+    def test_peak_area_with_background_sensitivity(self):
+        """peak_area_with_background_sensitivity must return mean, std, and per-method dict."""
+        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
+        mean_net, std_net, results = gs.peak_area_with_background_sensitivity(counts, 3, 7)
+        self.assertIsInstance(mean_net, float)
+        self.assertGreaterEqual(std_net, 0.0)
+        # Should have one entry per BackgroundMethod
+        self.assertEqual(len(results), len(gs.BackgroundMethod))
+        for name in results:
+            self.assertIn(name, [m.name for m in gs.BackgroundMethod])
+
+    def test_peak_area_sensitivity_flat_background(self):
+        """When background is truly flat all methods should agree closely."""
+        # Flat background of 10, peak of 100 at centre
+        counts = np.array([10, 10, 10, 110, 200, 110, 10, 10, 10, 10], dtype=float)
+        _mean, std_net, _results = gs.peak_area_with_background_sensitivity(counts, 3, 7)
+        # All methods should give similar background → small std
+        self.assertLess(std_net, 50.0)
 
 
 if __name__ == "__main__":
