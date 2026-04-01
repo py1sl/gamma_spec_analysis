@@ -589,14 +589,33 @@ def get_peak_roi(
     return x, y
 
 
-def fit_peak(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
-    """fits a peak to a gaussian"""
+def fit_peak(
+    x: npt.NDArray[Any], y: npt.NDArray[Any]
+) -> Tuple[npt.NDArray[Any], npt.NDArray[Any]]:
+    """Fit a single peak to a Gaussian.
+
+    Parameters
+    ----------
+    x : array-like
+        Energy bin positions for the region of interest.
+    y : array-like
+        Counts for the region of interest.
+
+    Returns
+    -------
+    popt : numpy.ndarray
+        Optimal fit parameters ``[amplitude, centroid, sigma]``.
+    pcov : numpy.ndarray
+        Estimated covariance matrix of *popt* (3×3).  The square root of
+        the diagonal elements gives one-standard-deviation uncertainties
+        for each parameter.
+    """
     mean = np.sum(x * y) / np.sum(y)
     sigma = np.sqrt(np.sum(y * (x - mean) ** 2) / np.sum(y))
 
     popt, pcov = curve_fit(gaussian, x, y, p0=[max(y), mean, sigma], maxfev=10000)
 
-    return popt
+    return popt, pcov
 
 
 def fit_doublet(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
@@ -615,8 +634,10 @@ def fit_doublet(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
 
     Returns
     -------
-    numpy.ndarray
+    popt : numpy.ndarray
         Array of 6 fitted parameters [a1, x01, sigma1, a2, x02, sigma2]
+    pcov : numpy.ndarray
+        Estimated covariance matrix of *popt* (6×6).
 
     Raises
     ------
@@ -659,7 +680,470 @@ def fit_doublet(x: npt.NDArray[Any], y: npt.NDArray[Any]) -> npt.NDArray[Any]:
 
     popt, pcov = curve_fit(double_gaussian, x, y, p0=p0, maxfev=10000)
 
-    return popt
+    return popt, pcov
+
+
+# ---------------------------------------------------------------------------
+# Gaussian area helpers (Option 2)
+# ---------------------------------------------------------------------------
+
+def gaussian_area(a: float, sigma: float) -> float:
+    """Return the analytic area of a Gaussian peak.
+
+    For a Gaussian of the form ``a * exp(-(x-x0)^2 / (2*sigma^2))`` the
+    definite integral from −∞ to +∞ equals ``a * sigma * sqrt(2*pi)``.
+
+    Parameters
+    ----------
+    a : float
+        Peak amplitude.
+    sigma : float
+        Standard deviation (width parameter).
+
+    Returns
+    -------
+    float
+        Analytic peak area (counts).
+    """
+    return float(a * np.abs(sigma) * np.sqrt(2.0 * np.pi))
+
+
+def gaussian_area_uncertainty(
+    a: float, sigma: float, pcov: npt.NDArray[Any]
+) -> float:
+    """Return the one-sigma uncertainty on the analytic Gaussian peak area.
+
+    Uses first-order error propagation through ``area = a * |sigma| * sqrt(2*pi)``:
+
+    .. math::
+
+        \\sigma_{\\text{area}} = \\sqrt{2\\pi}\\,
+            \\sqrt{(\\sigma \\cdot \\sigma_a)^2
+                  + (a \\cdot \\sigma_\\sigma)^2
+                  + 2\\,a\\,\\sigma \\cdot \\mathrm{cov}(a,\\,\\sigma)}
+
+    where ``sigma_a = sqrt(pcov[0,0])``, ``sigma_sigma = sqrt(pcov[2,2])``,
+    and ``cov(a, sigma) = pcov[0,2]``.
+
+    Parameters
+    ----------
+    a : float
+        Fitted amplitude (``popt[0]``).
+    sigma : float
+        Fitted width (``popt[2]``).
+    pcov : numpy.ndarray
+        3×3 covariance matrix returned by :func:`fit_peak`.
+
+    Returns
+    -------
+    float
+        One-sigma uncertainty on the peak area (counts).
+    """
+    pcov = np.asarray(pcov, dtype=float)
+    var_a = pcov[0, 0]
+    var_sigma = pcov[2, 2]
+    cov_a_sigma = pcov[0, 2]
+    # Partial derivatives: dA/da = |sigma|*sqrt(2pi), dA/dsigma = a*sqrt(2pi)
+    abs_sigma = np.abs(sigma)
+    variance = (2.0 * np.pi) * (
+        (abs_sigma * abs_sigma) * var_a
+        + (a * a) * var_sigma
+        + 2.0 * a * abs_sigma * cov_a_sigma
+    )
+    return float(np.sqrt(max(variance, 0.0)))
+
+
+def fit_peak_area(
+    x: npt.NDArray[Any], y: npt.NDArray[Any]
+) -> Tuple[float, float]:
+    """Fit a single Gaussian peak and return its area with uncertainty.
+
+    Combines :func:`fit_peak` with :func:`gaussian_area` and
+    :func:`gaussian_area_uncertainty` to give both the analytic peak area and
+    its one-sigma uncertainty derived from the covariance matrix of the fit.
+
+    Parameters
+    ----------
+    x : array-like
+        Energy bin positions for the region of interest.
+    y : array-like
+        Counts for the region of interest.
+
+    Returns
+    -------
+    area : float
+        Analytic Gaussian peak area ``a * |sigma| * sqrt(2*pi)``.
+    area_uncertainty : float
+        One-sigma uncertainty on *area* propagated from the fit covariance.
+    """
+    popt, pcov = fit_peak(x, y)
+    a, _x0, sigma = popt
+    area = gaussian_area(a, sigma)
+    unc = gaussian_area_uncertainty(a, sigma, pcov)
+    return area, unc
+
+
+def fit_doublet_areas(
+    x: npt.NDArray[Any], y: npt.NDArray[Any]
+) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+    """Fit a doublet and return the area and uncertainty for each sub-peak.
+
+    Uses :func:`fit_doublet` and propagates uncertainties for each of the two
+    Gaussian components using their respective sub-blocks of the covariance
+    matrix.
+
+    Parameters
+    ----------
+    x : array-like
+        Energy bin positions for the region of interest.
+    y : array-like
+        Counts for the region of interest.
+
+    Returns
+    -------
+    peak1 : tuple of (float, float)
+        ``(area, area_uncertainty)`` for the first Gaussian component.
+    peak2 : tuple of (float, float)
+        ``(area, area_uncertainty)`` for the second Gaussian component.
+    """
+    popt, pcov = fit_doublet(x, y)
+    a1, _x01, sigma1, a2, _x02, sigma2 = popt
+
+    # Extract 3×3 sub-blocks for each peak's parameters
+    # Peak 1: indices 0,1,2  →  a1, x01, sigma1
+    idx1 = [0, 1, 2]
+    pcov1 = pcov[np.ix_(idx1, idx1)]
+    # Peak 2: indices 3,4,5  →  a2, x02, sigma2
+    idx2 = [3, 4, 5]
+    pcov2 = pcov[np.ix_(idx2, idx2)]
+
+    area1 = gaussian_area(a1, sigma1)
+    unc1 = gaussian_area_uncertainty(a1, sigma1, pcov1)
+    area2 = gaussian_area(a2, sigma2)
+    unc2 = gaussian_area_uncertainty(a2, sigma2, pcov2)
+
+    return (area1, unc1), (area2, unc2)
+
+
+# ---------------------------------------------------------------------------
+# Per-method background variance (Option 4)
+# ---------------------------------------------------------------------------
+
+def estimate_background_trapezoid_uncertainty(
+    counts: npt.NDArray[Any], c1: int, c2: int
+) -> float:
+    """Return the one-sigma uncertainty on the trapezoid background estimate.
+
+    Assumes Poisson statistics so that ``var(N_i) = N_i`` for each channel.
+    Propagating through ``bg = (low_sum + high_sum) * (width / 6)``:
+
+    .. math::
+
+        \\sigma_{bg} = \\frac{\\mathrm{width}}{6}
+                      \\sqrt{\\sum_{i \\in \\text{low}} n_i
+                           + \\sum_{i \\in \\text{high}} n_i}
+
+    Parameters
+    ----------
+    counts : numpy.ndarray
+        Spectrum counts array.
+    c1, c2 : int
+        ROI boundaries matching those passed to
+        :func:`estimate_background_trapezoid`.
+
+    Returns
+    -------
+    float
+        One-sigma Poisson uncertainty on the background estimate.
+    """
+    check_channel_validity(c1, c2, counts)
+
+    low_start = max(0, c1 - 2)
+    low_window = counts[low_start:c1]
+    high_end = min(len(counts), c2 + 2)
+    high_window = counts[c2:high_end]
+
+    width = c2 - c1 + 1
+    scale = width / 6.0
+    variance_bg = scale**2 * (
+        float(np.sum(np.abs(low_window))) + float(np.sum(np.abs(high_window)))
+    )
+    return float(np.sqrt(variance_bg))
+
+
+def estimate_background_linear_uncertainty(
+    counts: npt.NDArray[Any], c1: int, c2: int
+) -> float:
+    """Return the one-sigma uncertainty on the linear-interpolation background.
+
+    Propagates Poisson variance through
+    ``bg = (low_avg + high_avg) * width / 2`` where the averages are taken
+    over two-channel windows on each side:
+
+    .. math::
+
+        \\sigma_{bg} = \\frac{\\mathrm{width}}{2}
+                      \\sqrt{\\frac{\\sum n_i}{n_{\\text{low}}^2}
+                           + \\frac{\\sum n_j}{n_{\\text{high}}^2}}
+
+    Parameters
+    ----------
+    counts : numpy.ndarray
+        Spectrum counts array.
+    c1, c2 : int
+        ROI boundaries matching those passed to
+        :func:`estimate_background_linear`.
+
+    Returns
+    -------
+    float
+        One-sigma Poisson uncertainty on the background estimate.
+    """
+    check_channel_validity(c1, c2, counts)
+
+    low_start = max(0, c1 - 2)
+    low_window = counts[low_start:c1]
+    high_end = min(len(counts), c2 + 2)
+    high_window = counts[c2:high_end]
+
+    width = c2 - c1
+    scale = width / 2.0
+
+    # var(mean) = sum(N_i) / n^2 under Poisson
+    n_low = len(low_window) if len(low_window) > 0 else 1
+    n_high = len(high_window) if len(high_window) > 0 else 1
+    var_low_avg = float(np.sum(np.abs(low_window))) / n_low**2
+    var_high_avg = float(np.sum(np.abs(high_window))) / n_high**2
+
+    variance_bg = scale**2 * (var_low_avg + var_high_avg)
+    return float(np.sqrt(variance_bg))
+
+
+def estimate_background_step_uncertainty(
+    counts: npt.NDArray[Any], c1: int, c2: int
+) -> float:
+    """Return the one-sigma uncertainty on the step-function background.
+
+    Propagates Poisson variance through
+    ``bg = ((low_avg + high_avg) / 2) * width``:
+
+    .. math::
+
+        \\sigma_{bg} = \\frac{\\mathrm{width}}{2}
+                      \\sqrt{\\frac{\\sum n_i}{4 n_{\\text{low}}^2}
+                           + \\frac{\\sum n_j}{4 n_{\\text{high}}^2}}
+
+    Parameters
+    ----------
+    counts : numpy.ndarray
+        Spectrum counts array.
+    c1, c2 : int
+        ROI boundaries matching those passed to
+        :func:`estimate_background_step`.
+
+    Returns
+    -------
+    float
+        One-sigma Poisson uncertainty on the background estimate.
+    """
+    check_channel_validity(c1, c2, counts)
+
+    low_start = max(0, c1 - 2)
+    low_window = counts[low_start:c1]
+    high_end = min(len(counts), c2 + 2)
+    high_window = counts[c2:high_end]
+
+    width = c2 - c1
+
+    n_low = len(low_window) if len(low_window) > 0 else 1
+    n_high = len(high_window) if len(high_window) > 0 else 1
+    # avg_bg = (low_avg + high_avg) / 2  →  var(avg_bg) = (var(low_avg) + var(high_avg)) / 4
+    var_low_avg = float(np.sum(np.abs(low_window))) / n_low**2
+    var_high_avg = float(np.sum(np.abs(high_window))) / n_high**2
+    var_avg_bg = (var_low_avg + var_high_avg) / 4.0
+
+    variance_bg = (width**2) * var_avg_bg
+    return float(np.sqrt(variance_bg))
+
+
+def estimate_background_sliding_average_uncertainty(
+    counts: npt.NDArray[Any], c1: int, c2: int, window: int = 5
+) -> float:
+    """Return the one-sigma uncertainty on the sliding-average background.
+
+    Propagates Poisson variance through
+    ``bg = (low_avg + high_avg) * width / 2`` where the averages use a
+    window of *window* channels:
+
+    .. math::
+
+        \\sigma_{bg} = \\frac{\\mathrm{width}}{2}
+                      \\sqrt{\\frac{\\sum n_i}{n_{\\text{low}}^2}
+                           + \\frac{\\sum n_j}{n_{\\text{high}}^2}}
+
+    Parameters
+    ----------
+    counts : numpy.ndarray
+        Spectrum counts array.
+    c1, c2 : int
+        ROI boundaries matching those passed to
+        :func:`estimate_background_sliding_average`.
+    window : int, optional
+        Window size used in :func:`estimate_background_sliding_average`.
+        Default is 5.
+
+    Returns
+    -------
+    float
+        One-sigma Poisson uncertainty on the background estimate.
+    """
+    check_channel_validity(c1, c2, counts)
+
+    low_start = max(0, c1 - window)
+    low_window = counts[low_start:c1]
+    high_end = min(len(counts), c2 + window)
+    high_window = counts[c2:high_end]
+
+    width = c2 - c1
+
+    n_low = len(low_window) if len(low_window) > 0 else 1
+    n_high = len(high_window) if len(high_window) > 0 else 1
+    var_low_avg = float(np.sum(np.abs(low_window))) / n_low**2
+    var_high_avg = float(np.sum(np.abs(high_window))) / n_high**2
+
+    scale = width / 2.0
+    variance_bg = scale**2 * (var_low_avg + var_high_avg)
+    return float(np.sqrt(variance_bg))
+
+
+def calc_bg_uncertainty(
+    counts: npt.NDArray[Any],
+    c1: int,
+    c2: int,
+    m: BackgroundMethod = BackgroundMethod.TRAPEZOID,
+) -> float:
+    """Dispatcher: return the Poisson-propagated background uncertainty.
+
+    Selects the appropriate analytical uncertainty function for the chosen
+    background estimation method.
+
+    Parameters
+    ----------
+    counts : numpy.ndarray
+        Spectrum counts array.
+    c1, c2 : int
+        ROI channel boundaries.
+    m : BackgroundMethod
+        Background method selector (default: ``TRAPEZOID``).
+
+    Returns
+    -------
+    float
+        One-sigma uncertainty on the background estimate.
+    """
+    if m == BackgroundMethod.TRAPEZOID:
+        return estimate_background_trapezoid_uncertainty(counts, c1, c2)
+    elif m == BackgroundMethod.LINEAR:
+        return estimate_background_linear_uncertainty(counts, c1, c2)
+    elif m == BackgroundMethod.STEP:
+        return estimate_background_step_uncertainty(counts, c1, c2)
+    elif m == BackgroundMethod.SLIDING_AVERAGE:
+        return estimate_background_sliding_average_uncertainty(counts, c1, c2)
+    else:
+        raise ValueError("m is not set to a valid method id")
+
+
+def net_counts_uncertainty(
+    counts: npt.NDArray[Any],
+    c1: int,
+    c2: int,
+    m: BackgroundMethod = BackgroundMethod.TRAPEZOID,
+) -> Tuple[float, float]:
+    """Return net counts and their one-sigma Poisson uncertainty.
+
+    Computes both the net peak area and the associated statistical
+    uncertainty by propagating Poisson variance through:
+
+    .. math::
+
+        N_{\\text{net}} = N_{\\text{gross}} - B
+
+    .. math::
+
+        \\sigma_{\\text{net}} = \\sqrt{N_{\\text{gross}} + \\sigma_B^2}
+
+    where :math:`\\sigma_B` is obtained from :func:`calc_bg_uncertainty` for
+    the selected background method, and the Poisson variance on the gross
+    counts is simply :math:`N_{\\text{gross}}`.
+
+    Parameters
+    ----------
+    counts : numpy.ndarray
+        Spectrum counts array.
+    c1, c2 : int
+        ROI channel boundaries.
+    m : BackgroundMethod
+        Background method selector (default: ``TRAPEZOID``).
+
+    Returns
+    -------
+    net : float
+        Net counts (peak area after background subtraction).
+    uncertainty : float
+        One-sigma statistical uncertainty on *net*.
+    """
+    nc = net_counts(counts, c1, c2, m)
+    gc = gross_count(counts, c1, c2)
+    sigma_bg = calc_bg_uncertainty(counts, c1, c2, m)
+    uncertainty = float(np.sqrt(float(gc) + sigma_bg**2))
+    return nc, uncertainty
+
+
+# ---------------------------------------------------------------------------
+# Background sensitivity analysis (Option 3)
+# ---------------------------------------------------------------------------
+
+def peak_area_with_background_sensitivity(
+    counts: npt.NDArray[Any],
+    c1: int,
+    c2: int,
+) -> Tuple[float, float, dict]:
+    """Estimate peak area and systematic uncertainty across all background methods.
+
+    Runs all four background-subtraction methods and reports the mean net
+    count together with the standard deviation across methods as a measure of
+    systematic sensitivity to the background choice.
+
+    This is not a formal statistical uncertainty but a useful diagnostic: a
+    large spread indicates that the result is strongly dependent on the chosen
+    background model and should be treated with caution.
+
+    Parameters
+    ----------
+    counts : numpy.ndarray
+        Spectrum counts array.
+    c1, c2 : int
+        ROI channel boundaries.
+
+    Returns
+    -------
+    mean_net : float
+        Mean net counts averaged over the four background methods.
+    std_net : float
+        Standard deviation of net counts across the four methods.
+    results : dict
+        Per-method net counts keyed by :class:`BackgroundMethod` name,
+        e.g. ``{'TRAPEZOID': 120.3, 'LINEAR': 118.7, ...}``.
+    """
+    check_channel_validity(c1, c2, counts)
+
+    method_results: dict = {}
+    for method in BackgroundMethod:
+        nc = net_counts(counts, c1, c2, method)
+        method_results[method.name] = nc
+
+    values = np.array(list(method_results.values()), dtype=float)
+    return float(np.mean(values)), float(np.std(values, ddof=0)), method_results
 
 
 def identify_doublets(
