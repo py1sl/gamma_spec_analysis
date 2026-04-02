@@ -863,8 +863,8 @@ def peak_fwhm_uncertainty(sigma: float, sigma_unc: float) -> float:
     Parameters
     ----------
     sigma : float
-        Fitted Gaussian sigma (``popt[2]``).  Used only to determine sign
-        consistency; the magnitude is not used directly.
+        Fitted Gaussian sigma (``popt[2]``).  Included for API symmetry with
+        :func:`peak_fwhm` but not used in the calculation.
     sigma_unc : float
         One-sigma uncertainty on *sigma* (``sqrt(pcov[2, 2])``).
 

@@ -783,14 +783,13 @@ class analysis_test_case(unittest.TestCase):
         popt, pcov = gs.fit_peak(x, y)
         expected_fwhm = gs.peak_fwhm(popt[2])
         expected_unc = gs.peak_fwhm_uncertainty(popt[2], np.sqrt(pcov[2, 2]))
-        fwhm, fwhm_unc = gs.fit_peak_fwhm(x, y)
-        # Use a fresh fit so seeds match exactly
+        # fit_peak_fwhm must produce exactly the same values
         np.random.seed(11)
         x2 = np.linspace(0, 10, 60)
         y2 = gs.gaussian(x2, 100.0, 5.0, 1.2) + np.random.normal(0, 0.5, 60)
-        fwhm2, fwhm_unc2 = gs.fit_peak_fwhm(x2, y2)
-        self.assertGreater(fwhm2, 0.0)
-        self.assertGreaterEqual(fwhm_unc2, 0.0)
+        fwhm, fwhm_unc = gs.fit_peak_fwhm(x2, y2)
+        self.assertAlmostEqual(fwhm, expected_fwhm)
+        self.assertAlmostEqual(fwhm_unc, expected_unc)
 
     def test_fit_peak_fwhm_known_sigma(self):
         """For a noise-free Gaussian the FWHM should be close to the analytic value."""

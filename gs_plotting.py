@@ -268,7 +268,8 @@ def plot_spectra_overlay(
         label = labels[i] if i < len(labels) else f"Spectrum {i}"
         if isinstance(spec, _ph_spectrum.PhSpectrum):
             counts = spec.normalise_to_livetime() if normalise else spec.counts
-            x = spec.ebin if spec.ebin.size > 0 else np.arange(len(spec.counts))
+            n_ch = spec.num_channels
+            x = spec.ebin if spec.ebin.size > 0 else np.arange(n_ch)
         else:
             counts = np.asarray(spec)
             if ergs is not None and i < len(ergs) and ergs[i] is not None:
