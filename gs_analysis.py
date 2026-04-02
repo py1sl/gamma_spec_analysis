@@ -10,7 +10,7 @@ from enum import IntEnum
 
 import ph_spectrum
 
-from typing import List, Optional, Sequence, Tuple, Union, Any
+from typing import Callable, List, Optional, Sequence, Tuple, Union, Any
 import numpy.typing as npt
 
 
@@ -823,6 +823,318 @@ def fit_doublet_areas(
     unc2 = gaussian_area_uncertainty(a2, sigma2, pcov2)
 
     return (area1, unc1), (area2, unc2)
+
+
+# ---------------------------------------------------------------------------
+# FWHM helpers (Option 4 from improvement plan)
+# ---------------------------------------------------------------------------
+
+#: Conversion factor from Gaussian sigma to FWHM: ``2 * sqrt(2 * ln(2))``.
+_FWHM_FACTOR: float = 2.0 * np.sqrt(2.0 * np.log(2.0))
+
+
+def peak_fwhm(sigma: float) -> float:
+    """Return the Full Width at Half Maximum (FWHM) of a Gaussian peak.
+
+    Uses the exact conversion ``FWHM = 2 * sqrt(2 * ln 2) * |sigma|``
+    (approximately ``2.3548 * |sigma|``).
+
+    Parameters
+    ----------
+    sigma : float
+        Gaussian width parameter as returned in ``popt[2]`` by
+        :func:`fit_peak`.  The sign is ignored.
+
+    Returns
+    -------
+    float
+        FWHM in the same units as *sigma* (channels or energy, depending on
+        the coordinate axis used during fitting).
+    """
+    return _FWHM_FACTOR * abs(sigma)
+
+
+def peak_fwhm_uncertainty(sigma: float, sigma_unc: float) -> float:
+    """Return the one-sigma uncertainty on the FWHM.
+
+    Since ``FWHM = k * |sigma|``, first-order propagation gives
+    ``sigma_FWHM = k * sigma_sigma`` where ``k = 2*sqrt(2*ln2)``.
+
+    Parameters
+    ----------
+    sigma : float
+        Fitted Gaussian sigma (``popt[2]``).  Included for API symmetry with
+        :func:`peak_fwhm` but not used in the calculation.
+    sigma_unc : float
+        One-sigma uncertainty on *sigma* (``sqrt(pcov[2, 2])``).
+
+    Returns
+    -------
+    float
+        One-sigma uncertainty on the FWHM.
+    """
+    return _FWHM_FACTOR * abs(sigma_unc)
+
+
+def fit_peak_fwhm(
+    x: npt.NDArray[Any], y: npt.NDArray[Any]
+) -> Tuple[float, float]:
+    """Fit a single Gaussian peak and return its FWHM with uncertainty.
+
+    Convenience wrapper that calls :func:`fit_peak` and converts the fitted
+    sigma to FWHM via :func:`peak_fwhm` and :func:`peak_fwhm_uncertainty`.
+
+    Parameters
+    ----------
+    x : array-like
+        Energy bin positions for the region of interest.
+    y : array-like
+        Counts for the region of interest.
+
+    Returns
+    -------
+    fwhm : float
+        Full Width at Half Maximum in the same units as *x*.
+    fwhm_uncertainty : float
+        One-sigma uncertainty on *fwhm* propagated from the fit covariance.
+    """
+    popt, pcov = fit_peak(x, y)
+    sigma = popt[2]
+    sigma_unc = float(np.sqrt(pcov[2, 2]))
+    return peak_fwhm(sigma), peak_fwhm_uncertainty(sigma, sigma_unc)
+
+
+# ---------------------------------------------------------------------------
+# Goodness-of-fit statistics (Option 5 from improvement plan)
+# ---------------------------------------------------------------------------
+
+def fit_chi2(
+    x: npt.NDArray[Any],
+    y: npt.NDArray[Any],
+    popt: npt.NDArray[Any],
+    model_fn: Callable[..., npt.NDArray[Any]],
+    n_params: Optional[int] = None,
+) -> Tuple[float, float, int]:
+    """Compute chi-squared goodness-of-fit statistics for any fitted model.
+
+    Poisson statistics are assumed, so the variance in each bin is taken as
+    ``max(y_i, 1)`` to avoid division by zero in empty bins.
+
+    Parameters
+    ----------
+    x : array-like
+        x-axis values (energy bins or channels) used during fitting.
+    y : array-like
+        Observed counts used during fitting.
+    popt : array-like
+        Optimal parameters returned by the fitting function (e.g.
+        :func:`fit_peak` or :func:`fit_doublet`).
+    model_fn : callable
+        The model function with signature ``model_fn(x, *popt)``, e.g.
+        :func:`gaussian` or :func:`double_gaussian`.
+    n_params : int, optional
+        Number of free parameters in the fit.  Defaults to ``len(popt)``.
+
+    Returns
+    -------
+    chi2 : float
+        Chi-squared statistic ``sum((y_i - y_fit_i)^2 / max(y_i, 1))``.
+    reduced_chi2 : float
+        Reduced chi-squared ``chi2 / ndof``.  Returns ``inf`` if
+        ``ndof <= 0``.
+    ndof : int
+        Degrees of freedom ``len(y) - n_params``.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    popt = np.asarray(popt, dtype=float)
+
+    if n_params is None:
+        n_params = len(popt)
+
+    y_fit = model_fn(x, *popt)
+    variance = np.maximum(y, 1.0)
+    chi2 = float(np.sum((y - y_fit) ** 2 / variance))
+    ndof = len(y) - n_params
+    reduced_chi2 = chi2 / ndof if ndof > 0 else float("inf")
+    return chi2, reduced_chi2, ndof
+
+
+def fit_peak_chi2(
+    x: npt.NDArray[Any],
+    y: npt.NDArray[Any],
+    popt: npt.NDArray[Any],
+) -> Tuple[float, float, int]:
+    """Goodness-of-fit statistics for a single-peak Gaussian fit.
+
+    Convenience wrapper around :func:`fit_chi2` using :func:`gaussian` as
+    the model and ``n_params = 3``.
+
+    Parameters
+    ----------
+    x : array-like
+        Energy bin positions for the ROI.
+    y : array-like
+        Counts for the ROI.
+    popt : array-like
+        Three-parameter Gaussian fit result ``[amplitude, centroid, sigma]``
+        from :func:`fit_peak`.
+
+    Returns
+    -------
+    chi2 : float
+        Chi-squared statistic.
+    reduced_chi2 : float
+        Reduced chi-squared (chi2 per degree of freedom).
+    ndof : int
+        Degrees of freedom (``len(y) - 3``).
+    """
+    return fit_chi2(x, y, popt, gaussian, n_params=3)
+
+
+def fit_doublet_chi2(
+    x: npt.NDArray[Any],
+    y: npt.NDArray[Any],
+    popt: npt.NDArray[Any],
+) -> Tuple[float, float, int]:
+    """Goodness-of-fit statistics for a doublet fit.
+
+    Convenience wrapper around :func:`fit_chi2` using :func:`double_gaussian`
+    as the model and ``n_params = 6``.
+
+    Parameters
+    ----------
+    x : array-like
+        Energy bin positions for the ROI.
+    y : array-like
+        Counts for the ROI.
+    popt : array-like
+        Six-parameter doublet fit result
+        ``[a1, x01, sigma1, a2, x02, sigma2]`` from :func:`fit_doublet`.
+
+    Returns
+    -------
+    chi2 : float
+        Chi-squared statistic.
+    reduced_chi2 : float
+        Reduced chi-squared (chi2 per degree of freedom).
+    ndof : int
+        Degrees of freedom (``len(y) - 6``).
+    """
+    return fit_chi2(x, y, popt, double_gaussian, n_params=6)
+
+
+# ---------------------------------------------------------------------------
+# Activity calculation (Option 3 from improvement plan)
+# ---------------------------------------------------------------------------
+
+def calc_activity(
+    net_counts: float,
+    live_time: float,
+    emission_probability: float,
+    efficiency: float,
+) -> float:
+    """Return the source activity in Becquerels (Bq).
+
+    Converts a background-subtracted peak area to an absolute source
+    activity using:
+
+    .. math::
+
+        A = \\frac{N_{\\text{net}}}{T_{\\text{live}} \\cdot I_{\\gamma}
+                                    \\cdot \\varepsilon}
+
+    where :math:`N_{\\text{net}}` is the net counts from
+    :func:`net_counts`, :math:`T_{\\text{live}}` is the measurement
+    live time in seconds, :math:`I_{\\gamma}` is the gamma-ray emission
+    probability per decay (branching ratio), and :math:`\\varepsilon` is
+    the detector efficiency at the photopeak energy.
+
+    Parameters
+    ----------
+    net_counts : float
+        Net peak counts after background subtraction (e.g. from
+        :func:`net_counts` or :func:`fit_peak_area`).
+    live_time : float
+        Measurement live time in seconds (``PhSpectrum.live_time``).
+    emission_probability : float
+        Gamma-ray emission probability per decay in the range ``(0, 1]``
+        (also called intensity or branching ratio).
+    efficiency : float
+        Absolute detector efficiency at the photopeak energy, in the range
+        ``(0, 1]`` (e.g. from :func:`calc_energy_efficiency`).
+
+    Returns
+    -------
+    float
+        Source activity in Becquerels (Bq = disintegrations per second).
+
+    Raises
+    ------
+    ValueError
+        If *live_time* is not positive, or if *emission_probability* or
+        *efficiency* are outside ``(0, 1]``.
+    """
+    if live_time <= 0.0:
+        raise ValueError("live_time must be positive")
+    if emission_probability <= 0.0 or emission_probability > 1.0:
+        raise ValueError("emission_probability must be in the range (0, 1]")
+    if efficiency <= 0.0 or efficiency > 1.0:
+        raise ValueError("efficiency must be in the range (0, 1]")
+    return float(net_counts) / (live_time * emission_probability * efficiency)
+
+
+def calc_activity_uncertainty(
+    net_counts_unc: float,
+    live_time: float,
+    emission_probability: float,
+    efficiency: float,
+) -> float:
+    """Return the one-sigma uncertainty on the activity (Bq).
+
+    Propagates the uncertainty on the net counts through the activity
+    formula, treating live time, emission probability, and efficiency as
+    exact:
+
+    .. math::
+
+        \\sigma_A = \\frac{\\sigma_{N_{\\text{net}}}}
+                         {T_{\\text{live}} \\cdot I_{\\gamma}
+                          \\cdot \\varepsilon}
+
+    For the net-counts uncertainty use :func:`net_counts_uncertainty`
+    (Poisson + background propagation) or :func:`gaussian_area_uncertainty`
+    (fit covariance).
+
+    Parameters
+    ----------
+    net_counts_unc : float
+        One-sigma uncertainty on the net peak counts.
+    live_time : float
+        Measurement live time in seconds.
+    emission_probability : float
+        Gamma-ray emission probability per decay in ``(0, 1]``.
+    efficiency : float
+        Absolute detector efficiency at the photopeak energy in ``(0, 1]``.
+
+    Returns
+    -------
+    float
+        One-sigma uncertainty on the activity in Becquerels.
+
+    Raises
+    ------
+    ValueError
+        If *live_time* is not positive, or if *emission_probability* or
+        *efficiency* are outside ``(0, 1]``.
+    """
+    if live_time <= 0.0:
+        raise ValueError("live_time must be positive")
+    if emission_probability <= 0.0 or emission_probability > 1.0:
+        raise ValueError("emission_probability must be in the range (0, 1]")
+    if efficiency <= 0.0 or efficiency > 1.0:
+        raise ValueError("efficiency must be in the range (0, 1]")
+    return float(net_counts_unc) / (live_time * emission_probability * efficiency)
 
 
 # ---------------------------------------------------------------------------
