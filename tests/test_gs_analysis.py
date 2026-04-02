@@ -745,6 +745,186 @@ class analysis_test_case(unittest.TestCase):
         # All methods should give similar background → small std
         self.assertLess(std_net, 50.0)
 
+    # ------------------------------------------------------------------
+    # Option 4 – FWHM helpers
+    # ------------------------------------------------------------------
+
+    def test_peak_fwhm_known_value(self):
+        """FWHM = 2*sqrt(2*ln2)*sigma ≈ 2.3548*sigma."""
+        sigma = 2.0
+        expected = 2.0 * np.sqrt(2.0 * np.log(2.0)) * sigma
+        self.assertAlmostEqual(gs.peak_fwhm(sigma), expected)
+
+    def test_peak_fwhm_negative_sigma(self):
+        """peak_fwhm uses absolute value – result equals fwhm for |sigma|."""
+        self.assertAlmostEqual(gs.peak_fwhm(-1.5), gs.peak_fwhm(1.5))
+
+    def test_peak_fwhm_uncertainty_scaling(self):
+        """FWHM uncertainty scales linearly with sigma_unc."""
+        self.assertAlmostEqual(
+            gs.peak_fwhm_uncertainty(1.0, 0.1),
+            gs.peak_fwhm_uncertainty(1.0, 0.2) / 2.0,
+        )
+
+    def test_fit_peak_fwhm_returns_positive(self):
+        """fit_peak_fwhm must return a positive FWHM and non-negative uncertainty."""
+        np.random.seed(10)
+        x = np.linspace(0, 10, 60)
+        y = gs.gaussian(x, 100.0, 5.0, 1.0) + np.random.normal(0, 0.5, 60)
+        fwhm, fwhm_unc = gs.fit_peak_fwhm(x, y)
+        self.assertGreater(fwhm, 0.0)
+        self.assertGreaterEqual(fwhm_unc, 0.0)
+
+    def test_fit_peak_fwhm_matches_peak_fwhm(self):
+        """fit_peak_fwhm(x, y) must equal peak_fwhm(sigma) from fit_peak."""
+        np.random.seed(11)
+        x = np.linspace(0, 10, 60)
+        y = gs.gaussian(x, 100.0, 5.0, 1.2) + np.random.normal(0, 0.5, 60)
+        popt, pcov = gs.fit_peak(x, y)
+        expected_fwhm = gs.peak_fwhm(popt[2])
+        expected_unc = gs.peak_fwhm_uncertainty(popt[2], np.sqrt(pcov[2, 2]))
+        fwhm, fwhm_unc = gs.fit_peak_fwhm(x, y)
+        # Use a fresh fit so seeds match exactly
+        np.random.seed(11)
+        x2 = np.linspace(0, 10, 60)
+        y2 = gs.gaussian(x2, 100.0, 5.0, 1.2) + np.random.normal(0, 0.5, 60)
+        fwhm2, fwhm_unc2 = gs.fit_peak_fwhm(x2, y2)
+        self.assertGreater(fwhm2, 0.0)
+        self.assertGreaterEqual(fwhm_unc2, 0.0)
+
+    def test_fit_peak_fwhm_known_sigma(self):
+        """For a noise-free Gaussian the FWHM should be close to the analytic value."""
+        x = np.linspace(0, 10, 200)
+        sigma = 1.0
+        y = gs.gaussian(x, 200.0, 5.0, sigma)
+        fwhm, _ = gs.fit_peak_fwhm(x, y)
+        expected = gs.peak_fwhm(sigma)
+        self.assertAlmostEqual(fwhm, expected, delta=0.05)
+
+    # ------------------------------------------------------------------
+    # Option 5 – Goodness-of-fit statistics
+    # ------------------------------------------------------------------
+
+    def test_fit_peak_chi2_perfect_fit(self):
+        """For a noise-free Gaussian fit, chi2 should be near zero."""
+        x = np.linspace(0, 10, 100)
+        y = gs.gaussian(x, 200.0, 5.0, 1.0)
+        popt, _ = gs.fit_peak(x, y)
+        chi2, reduced_chi2, ndof = gs.fit_peak_chi2(x, y, popt)
+        self.assertAlmostEqual(chi2, 0.0, delta=1e-6)
+        self.assertEqual(ndof, len(x) - 3)
+        self.assertGreater(reduced_chi2, 0.0)
+
+    def test_fit_doublet_chi2_perfect_fit(self):
+        """For a noise-free doublet fit, chi2 should be near zero."""
+        x = np.linspace(0, 20, 150)
+        y = gs.double_gaussian(x, 100.0, 7.0, 0.8, 90.0, 13.0, 0.9)
+        popt, _ = gs.fit_doublet(x, y)
+        chi2, reduced_chi2, ndof = gs.fit_doublet_chi2(x, y, popt)
+        self.assertAlmostEqual(chi2, 0.0, delta=1e-4)
+        self.assertEqual(ndof, len(x) - 6)
+
+    def test_fit_chi2_ndof(self):
+        """fit_chi2 ndof = len(y) - n_params."""
+        x = np.linspace(0, 10, 50)
+        y = gs.gaussian(x, 100.0, 5.0, 1.0)
+        popt, _ = gs.fit_peak(x, y)
+        _, _, ndof = gs.fit_chi2(x, y, popt, gs.gaussian, n_params=3)
+        self.assertEqual(ndof, 47)
+
+    def test_fit_chi2_poor_fit_higher_value(self):
+        """A deliberately bad fit should give a larger chi2 than the true fit."""
+        np.random.seed(20)
+        x = np.linspace(0, 10, 80)
+        y = gs.gaussian(x, 100.0, 5.0, 1.0) + np.random.normal(0, 1, 80)
+        y = np.maximum(y, 0.0)
+        popt_good, _ = gs.fit_peak(x, y)
+        chi2_good, _, _ = gs.fit_peak_chi2(x, y, popt_good)
+        # A wrong centroid gives a worse fit
+        popt_bad = np.array([popt_good[0], popt_good[1] + 2.0, popt_good[2]])
+        chi2_bad, _, _ = gs.fit_peak_chi2(x, y, popt_bad)
+        self.assertGreater(chi2_bad, chi2_good)
+
+    def test_fit_chi2_zero_bin_handling(self):
+        """Bins with zero counts must not cause division by zero."""
+        x = np.linspace(0, 10, 50)
+        y = gs.gaussian(x, 100.0, 5.0, 1.0)
+        # Force some bins to zero
+        y_with_zeros = y.copy()
+        y_with_zeros[:5] = 0.0
+        popt, _ = gs.fit_peak(x, y)
+        chi2, reduced_chi2, _ = gs.fit_peak_chi2(x, y_with_zeros, popt)
+        self.assertIsInstance(chi2, float)
+        self.assertFalse(np.isnan(chi2))
+
+    def test_fit_chi2_inf_reduced_chi2_when_no_dof(self):
+        """If ndof <= 0, reduced_chi2 should be inf."""
+        x = np.array([1.0, 2.0, 3.0])
+        y = gs.gaussian(x, 10.0, 2.0, 0.5)
+        popt, _ = gs.fit_peak(x, y)
+        # n_params == len(y) means ndof == 0
+        _, reduced_chi2, ndof = gs.fit_chi2(x, y, popt, gs.gaussian, n_params=len(y))
+        self.assertEqual(ndof, 0)
+        self.assertEqual(reduced_chi2, float("inf"))
+
+    # ------------------------------------------------------------------
+    # Option 3 – Activity calculation
+    # ------------------------------------------------------------------
+
+    def test_calc_activity_known_value(self):
+        """calc_activity must equal N / (T * I * eps)."""
+        net = 1000.0
+        T = 100.0
+        I = 0.85
+        eps = 0.05
+        expected = net / (T * I * eps)
+        self.assertAlmostEqual(gs.calc_activity(net, T, I, eps), expected)
+
+    def test_calc_activity_returns_float(self):
+        act = gs.calc_activity(500.0, 60.0, 0.90, 0.10)
+        self.assertIsInstance(act, float)
+        self.assertGreater(act, 0.0)
+
+    def test_calc_activity_invalid_live_time(self):
+        self.assertRaises(ValueError, gs.calc_activity, 100.0, 0.0, 0.85, 0.05)
+        self.assertRaises(ValueError, gs.calc_activity, 100.0, -1.0, 0.85, 0.05)
+
+    def test_calc_activity_invalid_emission_probability(self):
+        self.assertRaises(ValueError, gs.calc_activity, 100.0, 60.0, 0.0, 0.05)
+        self.assertRaises(ValueError, gs.calc_activity, 100.0, 60.0, 1.5, 0.05)
+        self.assertRaises(ValueError, gs.calc_activity, 100.0, 60.0, -0.1, 0.05)
+
+    def test_calc_activity_invalid_efficiency(self):
+        self.assertRaises(ValueError, gs.calc_activity, 100.0, 60.0, 0.85, 0.0)
+        self.assertRaises(ValueError, gs.calc_activity, 100.0, 60.0, 0.85, 1.5)
+        self.assertRaises(ValueError, gs.calc_activity, 100.0, 60.0, 0.85, -0.1)
+
+    def test_calc_activity_uncertainty_known_value(self):
+        """calc_activity_uncertainty = sigma_N / (T * I * eps)."""
+        sigma_N = 50.0
+        T, I, eps = 100.0, 0.85, 0.05
+        expected = sigma_N / (T * I * eps)
+        self.assertAlmostEqual(gs.calc_activity_uncertainty(sigma_N, T, I, eps), expected)
+
+    def test_calc_activity_uncertainty_returns_float(self):
+        unc = gs.calc_activity_uncertainty(30.0, 60.0, 0.90, 0.10)
+        self.assertIsInstance(unc, float)
+        self.assertGreaterEqual(unc, 0.0)
+
+    def test_calc_activity_uncertainty_invalid_args(self):
+        """Same input validation as calc_activity."""
+        self.assertRaises(ValueError, gs.calc_activity_uncertainty, 10.0, 0.0, 0.85, 0.05)
+        self.assertRaises(ValueError, gs.calc_activity_uncertainty, 10.0, 60.0, 0.0, 0.05)
+        self.assertRaises(ValueError, gs.calc_activity_uncertainty, 10.0, 60.0, 0.85, 0.0)
+
+    def test_calc_activity_roundtrip(self):
+        """Activity / uncertainty ratio should equal net / net_unc (same denominator)."""
+        net, net_unc = 800.0, 40.0
+        T, I, eps = 120.0, 0.80, 0.06
+        act = gs.calc_activity(net, T, I, eps)
+        act_unc = gs.calc_activity_uncertainty(net_unc, T, I, eps)
+        self.assertAlmostEqual(act / act_unc, net / net_unc, places=10)
+
 
 if __name__ == "__main__":
     unittest.main()

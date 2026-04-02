@@ -387,6 +387,69 @@ class TestNewPlottingFunctions(unittest.TestCase):
             ax = gsp.plot_doublet_fit(x, y, popt, title="Doublet")
         self.assertEqual(ax.get_title(), "Doublet")
 
+    # ------------------------------------------------------------------
+    # Option 9 – normalise by live time
+    # ------------------------------------------------------------------
+
+    def test_plot_spectrum_normalise_ylabel(self):
+        """plot_spectrum with normalise=True should use count-rate y-label."""
+        spec = PhSpectrum(counts=self.counts, ebin=self.erg, live_time=100.0)
+        with patch("matplotlib.pyplot.show"):
+            ax = gsp.plot_spectrum(spec, normalise=True)
+        self.assertEqual(ax.get_ylabel(), "Count Rate (counts/s)")
+
+    def test_plot_spectrum_normalise_data(self):
+        """plot_spectrum with normalise=True should scale y-data by live_time."""
+        live_time = 50.0
+        spec = PhSpectrum(counts=self.counts, ebin=self.erg, live_time=live_time)
+        fig, ax_in = plt.subplots()
+        gsp.plot_spectrum(spec, normalise=True, ax=ax_in)
+        # Retrieve the plotted y-data (step plot produces two arrays)
+        lines = ax_in.lines
+        # The step plot stores data; verify maximum y is near max(counts)/live_time
+        plotted_max = max(line.get_ydata().max() for line in lines)
+        self.assertAlmostEqual(plotted_max, self.counts.max() / live_time, delta=1.0)
+
+    def test_plot_spectrum_normalise_ylabel_override(self):
+        """Caller can override the default count-rate ylabel."""
+        spec = PhSpectrum(counts=self.counts, ebin=self.erg, live_time=100.0)
+        with patch("matplotlib.pyplot.show"):
+            ax = gsp.plot_spectrum(spec, normalise=True, ylabel="Custom")
+        self.assertEqual(ax.get_ylabel(), "Custom")
+
+    def test_plot_spectrum_no_normalise_ylabel(self):
+        """Without normalise, ylabel should remain the default 'Counts'."""
+        spec = PhSpectrum(counts=self.counts, ebin=self.erg)
+        with patch("matplotlib.pyplot.show"):
+            ax = gsp.plot_spectrum(spec)
+        self.assertEqual(ax.get_ylabel(), "Counts")
+
+    def test_plot_spectra_overlay_normalise_ylabel(self):
+        """plot_spectra_overlay normalise=True should use count-rate y-label."""
+        spec1 = PhSpectrum(counts=self.counts, ebin=self.erg, live_time=60.0)
+        spec2 = PhSpectrum(counts=self.counts * 2, ebin=self.erg, live_time=120.0)
+        with patch("matplotlib.pyplot.show"):
+            ax = gsp.plot_spectra_overlay([spec1, spec2], normalise=True)
+        self.assertEqual(ax.get_ylabel(), "Count Rate (counts/s)")
+
+    def test_plot_spectra_overlay_normalise_explicit_ylabel(self):
+        """Explicit ylabel should take precedence even when normalise=True."""
+        spec = PhSpectrum(counts=self.counts, ebin=self.erg, live_time=60.0)
+        with patch("matplotlib.pyplot.show"):
+            ax = gsp.plot_spectra_overlay([spec], normalise=True, ylabel="My label")
+        self.assertEqual(ax.get_ylabel(), "My label")
+
+    def test_plot_spectra_overlay_normalise_plain_arrays_unchanged(self):
+        """Plain count arrays should not be normalised (no live_time available)."""
+        raw = self.counts
+        with patch("matplotlib.pyplot.show"):
+            ax_norm = gsp.plot_spectra_overlay([raw], normalise=True)
+            ax_plain = gsp.plot_spectra_overlay([raw], normalise=False)
+        # Both should plot the same data
+        y_norm = ax_norm.lines[0].get_ydata()
+        y_plain = ax_plain.lines[0].get_ydata()
+        np.testing.assert_array_equal(y_norm, y_plain)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -167,6 +167,7 @@ def plot_spectrum(
     spec: "_ph_spectrum.PhSpectrum",
     fname: Optional[str] = None,
     ax: Optional[Axes] = None,
+    normalise: bool = False,
     **kwargs: Any,
 ) -> Axes:
     """Plot a :class:`~ph_spectrum.PhSpectrum` object.
@@ -182,6 +183,11 @@ def plot_spectrum(
         File path to save the figure.
     ax : matplotlib.axes.Axes, optional
         Axes to plot on.  A new figure is created when ``None``.
+    normalise : bool, optional
+        When ``True``, divide counts by :attr:`~ph_spectrum.PhSpectrum.live_time`
+        to produce a count-rate spectrum (counts/s).  The y-axis label
+        defaults to ``"Count Rate (counts/s)"`` unless overridden via
+        *kwargs*.  Requires ``spec.live_time`` to be set.
     **kwargs
         Additional keyword arguments forwarded to :func:`plot_spec`
         (``title``, ``xlabel``, ``ylabel``, ``yscale``).
@@ -191,7 +197,12 @@ def plot_spectrum(
     matplotlib.axes.Axes
     """
     erg = spec.ebin if spec.ebin.size > 0 else None
-    return plot_spec(spec.counts, erg=erg, fname=fname, ax=ax, **kwargs)
+    if normalise:
+        counts = spec.normalise_to_livetime()
+        kwargs.setdefault("ylabel", "Count Rate (counts/s)")
+    else:
+        counts = spec.counts
+    return plot_spec(counts, erg=erg, fname=fname, ax=ax, **kwargs)
 
 
 def plot_spectra_overlay(
@@ -204,6 +215,7 @@ def plot_spectra_overlay(
     xlabel: str = "Channel",
     ylabel: str = "Counts",
     yscale: str = "log",
+    normalise: bool = False,
 ) -> Axes:
     """Overlay multiple spectra on the same axes.
 
@@ -231,9 +243,17 @@ def plot_spectra_overlay(
     xlabel : str, optional
         x-axis label.  Default ``"Channel"``.
     ylabel : str, optional
-        y-axis label.  Default ``"Counts"``.
+        y-axis label.  Default ``"Counts"``.  Automatically changed to
+        ``"Count Rate (counts/s)"`` when *normalise* is ``True`` and this
+        argument is not overridden.
     yscale : str, optional
         y-axis scale.  Default ``"log"``.
+    normalise : bool, optional
+        When ``True``, divide the counts for each
+        :class:`~ph_spectrum.PhSpectrum` item by its
+        :attr:`~ph_spectrum.PhSpectrum.live_time` before plotting.
+        Plain count arrays are plotted unchanged (live time unknown).
+        Requires ``live_time`` to be set on every ``PhSpectrum`` item.
 
     Returns
     -------
@@ -242,11 +262,13 @@ def plot_spectra_overlay(
     ax, created = _make_ax(ax)
     if labels is None:
         labels = [f"Spectrum {i}" for i in range(len(spectra))]
+    if normalise and ylabel == "Counts":
+        ylabel = "Count Rate (counts/s)"
     for i, spec in enumerate(spectra):
         label = labels[i] if i < len(labels) else f"Spectrum {i}"
         if isinstance(spec, _ph_spectrum.PhSpectrum):
-            counts = spec.counts
-            x = spec.ebin if spec.ebin.size > 0 else np.arange(len(counts))
+            counts = spec.normalise_to_livetime() if normalise else spec.counts
+            x = spec.ebin if spec.ebin.size > 0 else np.arange(len(spec.counts))
         else:
             counts = np.asarray(spec)
             if ergs is not None and i < len(ergs) and ergs[i] is not None:
