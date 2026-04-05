@@ -183,6 +183,137 @@ def get_shape_cal(line_data: Sequence[str], keywords_map: Dict[str, list]) -> Op
     return None
 
 
+def validate_free_text_spe_file(lines: List[str]) -> None:
+    """check if this is a free-text (colon-delimited) spe file"""
+    has_spectrum = any(line.strip() == "SPECTRUM" for line in lines)
+    has_real_time = any(line.strip().startswith("Real Time:") for line in lines)
+    if not (has_spectrum and has_real_time):
+        raise ValueError("This is not a valid free-text spe file")
+
+
+def read_free_text_spe(path: str) -> PhSpectrum:
+    """read a free-text colon-delimited spe format file (e.g. 93_test.spe)
+
+    This format uses plain-text section headers and ``Key:  value`` pairs
+    rather than the ``$KEYWORD:`` convention used by :func:`read_dollar_spe`.
+    The SPECTRUM section contains lines of the form::
+
+        <channel_number>:    <val0>    <val1>    <val2>    <val3>
+
+    where each line holds four counts (in scientific notation) preceded by the
+    starting channel index for that group.
+    """
+    lines = read_file(path)
+    validate_free_text_spe_file(lines)
+
+    counts = get_free_text_counts(lines)
+    live_time = get_free_text_live_time(lines)
+    real_time = get_free_text_real_time(lines)
+    energy_fit_coeffs = get_free_text_energy_fit(lines)
+    start_time = get_free_text_start_time(lines)
+    spec_name = get_free_text_spec_name(lines)
+    start_chan = get_free_text_start_channel(lines)
+
+    spec = PhSpectrum(
+        counts=counts,
+        live_time=live_time,
+        real_time=real_time,
+        energy_fit_coefficients=energy_fit_coeffs,
+        file_path=path,
+        start_time=start_time,
+        spec_name=spec_name if spec_name is not None else "",
+        start_chan_num=start_chan if start_chan is not None else 0,
+    )
+    return spec
+
+
+def _get_free_text_field(lines: List[str], key: str) -> Optional[str]:
+    """Return the value part of the first ``key:  value`` line, stripped."""
+    prefix = key + ":"
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(prefix):
+            return stripped[len(prefix):].strip()
+    return None
+
+
+def get_free_text_live_time(lines: List[str]) -> Optional[float]:
+    """extract live time from free-text spe"""
+    val = _get_free_text_field(lines, "Live Time")
+    return float(val) if val else None
+
+
+def get_free_text_real_time(lines: List[str]) -> Optional[float]:
+    """extract real time from free-text spe"""
+    val = _get_free_text_field(lines, "Real Time")
+    return float(val) if val else None
+
+
+def get_free_text_start_time(lines: List[str]) -> Optional[str]:
+    """extract acquisition start date/time from free-text spe"""
+    date = _get_free_text_field(lines, "Acquisition start date")
+    time = _get_free_text_field(lines, "Acquisition start time")
+    if date and time:
+        return f"{date} {time}"
+    if date:
+        return date
+    return None
+
+
+def get_free_text_spec_name(lines: List[str]) -> Optional[str]:
+    """extract spectrum name from free-text spe"""
+    return _get_free_text_field(lines, "Spectrum name")
+
+
+def get_free_text_start_channel(lines: List[str]) -> Optional[int]:
+    """extract starting channel number from free-text spe"""
+    val = _get_free_text_field(lines, "Starting channel number")
+    return int(val) if val is not None else None
+
+
+def get_free_text_energy_fit(lines: List[str]) -> Optional[npt.NDArray[np.float64]]:
+    """extract energy calibration coefficients from free-text spe
+
+    The ``Energy Fit:`` line contains two or three space-separated floats.
+    Only the first two (offset and slope) are returned to match the
+    convention used by :func:`get_energy_fit_coefficients`.
+    """
+    val = _get_free_text_field(lines, "Energy Fit")
+    if val is None:
+        return None
+    parts = val.split()
+    coeffs = np.array(parts, dtype=np.float64)
+    # Return only intercept and slope (first two coefficients)
+    return coeffs[:2]
+
+
+def get_free_text_counts(lines: List[str]) -> npt.NDArray[np.int64]:
+    """extract spectrum counts from free-text spe
+
+    Spectrum lines follow the pattern::
+
+        <channel_num>:    <val0>    <val1>    <val2>    <val3>
+
+    where values are in scientific notation.  The function locates the
+    ``SPECTRUM`` header and reads all subsequent matching lines.
+    """
+    spectrum_pattern = re.compile(r"^\s*(\d+):\s+(.*)")
+    in_spectrum = False
+    # Values are in scientific notation so we accumulate as floats, then
+    # convert to int64 (truncating any fractional part) before returning.
+    raw_counts: List[float] = []
+    for line in lines:
+        if line.strip() == "SPECTRUM":
+            in_spectrum = True
+            continue
+        if in_spectrum:
+            m = spectrum_pattern.match(line)
+            if m:
+                values = m.group(2).split()
+                raw_counts.extend(float(v) for v in values)
+    return np.array(raw_counts, dtype=np.int64)
+
+
 def get_dollar_keywords(line_data: Sequence[str]) -> Dict[str, list]:
     """Return a mapping of $-keywords to the list of line indices where they occur.
 
