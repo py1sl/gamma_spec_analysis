@@ -106,5 +106,78 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
         self.assertEqual(len(shape_cal['coefficients']), 3)
 
 
+class read_free_text_spe_test_case(unittest.TestCase):
+    """tests for the free-text colon-delimited spe reader (e.g. 93_test.spe)"""
+
+    _FILE = "../test_data/93_test.spe"
+
+    def test_validate_free_text_spe(self):
+        """validate_free_text_spe_file should accept the test file"""
+        lines = gsr.read_file(self._FILE)
+        # should not raise
+        gsr.validate_free_text_spe_file(lines)
+
+    def test_validate_rejects_dollar_spe(self):
+        """validate_free_text_spe_file should reject a $ spe file"""
+        lines = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
+        with self.assertRaises(ValueError):
+            gsr.validate_free_text_spe_file(lines)
+
+    def test_get_live_time(self):
+        lines = gsr.read_file(self._FILE)
+        self.assertAlmostEqual(gsr.get_free_text_live_time(lines), 1628.459961, places=3)
+
+    def test_get_real_time(self):
+        lines = gsr.read_file(self._FILE)
+        self.assertAlmostEqual(gsr.get_free_text_real_time(lines), 1800.0, places=3)
+
+    def test_get_start_time(self):
+        lines = gsr.read_file(self._FILE)
+        start = gsr.get_free_text_start_time(lines)
+        self.assertIn("10-Mar-2015", start)
+        self.assertIn("12:43:51", start)
+
+    def test_get_spec_name(self):
+        lines = gsr.read_file(self._FILE)
+        name = gsr.get_free_text_spec_name(lines)
+        self.assertIn("072.Spc", name)
+
+    def test_get_start_channel(self):
+        lines = gsr.read_file(self._FILE)
+        self.assertEqual(gsr.get_free_text_start_channel(lines), 0)
+
+    def test_get_energy_fit(self):
+        lines = gsr.read_file(self._FILE)
+        coeffs = gsr.get_free_text_energy_fit(lines)
+        self.assertIsNotNone(coeffs)
+        self.assertEqual(len(coeffs), 2)
+        self.assertAlmostEqual(coeffs[0], 0.0, places=5)
+        self.assertAlmostEqual(coeffs[1], 0.1369737, places=5)
+
+    def test_get_counts_length(self):
+        lines = gsr.read_file(self._FILE)
+        counts = gsr.get_free_text_counts(lines)
+        self.assertEqual(len(counts), 16384)
+
+    def test_get_counts_values(self):
+        lines = gsr.read_file(self._FILE)
+        counts = gsr.get_free_text_counts(lines)
+        # first 96 channels should be zero
+        self.assertEqual(counts[0], 0)
+        self.assertEqual(counts[95], 0)
+        # channel 99 should be 126
+        self.assertEqual(counts[99], 126)
+
+    def test_read_free_text_spe(self):
+        spec = gsr.read_free_text_spe(self._FILE)
+        self.assertEqual(len(spec.counts), 16384)
+        self.assertAlmostEqual(spec.live_time, 1628.459961, places=3)
+        self.assertAlmostEqual(spec.real_time, 1800.0, places=3)
+        self.assertIsNotNone(spec.energy_fit_coefficients)
+        self.assertEqual(len(spec.energy_fit_coefficients), 2)
+        self.assertIn("10-Mar-2015", spec.start_time)
+        self.assertEqual(spec.start_chan_num, 0)
+
+
 if __name__ == "__main__":
     unittest.main()
