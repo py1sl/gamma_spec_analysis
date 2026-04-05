@@ -32,5 +32,6 @@ py-modules = [
     "gs_multispectral_scaling",
     "gs_plotting",
     "gs_spe_reading",
+    "gs_spe_writer",
     "ph_spectrum",
 ]
