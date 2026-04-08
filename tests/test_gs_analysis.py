@@ -1,35 +1,14 @@
 import unittest
-from unittest.mock import patch, mock_open, call
 import numpy as np
 import gs_analysis as gs
-from gs_analysis import BackgroundMethod, EfficiencyFitType
+from gs_analysis import EfficiencyFitType
 import gs_spe_reading
 import ph_spectrum
 
 
 class analysis_test_case(unittest.TestCase):
-    """tests for analysis functions"""
-
-    def test_counts(self):
-        """tests related to the counts"""
-        # gross counts
-        counts = [1, 1, 1, 1, 1]
-        gc = gs.gross_count(counts, 1, 4)
-        self.assertEqual(gc, 3)
-        self.assertRaises(ValueError, gs.gross_count, counts, -1, 4)
-        self.assertRaises(ValueError, gs.gross_count, counts, 1, 10)
-        self.assertRaises(ValueError, gs.gross_count, counts, 10, 4)
-
-        # background
-        self.assertRaises(ValueError, gs.calc_bg, counts, -1, 4)
-        self.assertRaises(ValueError, gs.calc_bg, counts, 1, 10)
-        self.assertRaises(ValueError, gs.calc_bg, counts, 10, 4)
-        self.assertRaises(ValueError, gs.calc_bg, counts, 1, 4, 5)  # Invalid method
-
-        # net
-        self.assertRaises(ValueError, gs.net_counts, counts, -1, 4)
-        self.assertRaises(ValueError, gs.net_counts, counts, 1, 10)
-        self.assertRaises(ValueError, gs.net_counts, counts, 10, 4)
+    """tests for functions defined in gs_analysis (energy bins, efficiency,
+    activity, peak finding, and doublet identification)"""
 
     def test_ebins(self):
         """tests rlated to energy bins"""
@@ -64,16 +43,6 @@ class analysis_test_case(unittest.TestCase):
         self.assertEqual(len(ebins_zero), 5)
         self.assertEqual(spec_zero.num_channels, 5)
 
-    def test_roi(self):
-        """tests for extracting a region of interest"""
-        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
-        ebins = gs.generate_ebins(spec)
-        peak_ebin, data = gs.get_peak_roi(230, spec.counts, ebins)
-        self.assertEqual(len(data), 20)
-        self.assertEqual(len(data), len(peak_ebin))
-        self.assertRaises(ValueError, gs.get_peak_roi, 2, spec.counts, ebins)
-        self.assertRaises(ValueError, gs.get_peak_roi, 10000, spec.counts, ebins)
-
     def test_eff_fit(self):
         """tests for efficency function fitting"""
         self.assertRaises(ValueError, gs.calc_energy_efficiency, 1.3, [1, 1, 1, 1], 5)
@@ -89,384 +58,6 @@ class analysis_test_case(unittest.TestCase):
         eff = gs.calc_energy_efficiency(energy, eff_coeff, eff_fit=EfficiencyFitType.INVERSE_ENERGY)
         self.assertIsInstance(eff, float)
         self.assertGreater(eff, 0)
-
-    def test_smoothing(self):
-        """tests related to smoothing functions"""
-        # testing 5 point smooth
-        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
-        smoothed = gs.five_point_smooth(spec.counts)
-        self.assertEqual(len(smoothed), len(spec.counts))
-        self.assertEqual(smoothed[0], spec.counts[0])
-        self.assertEqual(smoothed[-1], spec.counts[-1])
-
-        # Test with array that's too short
-        short_array = [1, 2, 3, 4]
-        self.assertRaises(ValueError, gs.five_point_smooth, short_array)
-
-    def test_three_point_smooth(self):
-        """tests for 3 point smoothing function"""
-        # Test with simple data
-        counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        smoothed = gs.three_point_smooth(counts)
-
-        # Check length is preserved
-        self.assertEqual(len(smoothed), len(counts))
-
-        # Check first and last elements are unchanged
-        self.assertEqual(smoothed[0], counts[0])
-        self.assertEqual(smoothed[-1], counts[-1])
-
-        # Check middle element is average of 3 points
-        # For index 1: (1 + 2 + 3) / 3 = 2.0
-        self.assertAlmostEqual(smoothed[1], 2.0)
-        # For index 5: (5 + 6 + 7) / 3 = 6.0
-        self.assertAlmostEqual(smoothed[5], 6.0)
-
-        # Test with array that's too short
-        short_array = [1, 2]
-        self.assertRaises(ValueError, gs.three_point_smooth, short_array)
-
-    def test_moving_average(self):
-        """tests for moving average smoothing function"""
-        # Test with simple data and default window
-        counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        smoothed = gs.moving_average(counts, window=5)
-
-        # Check length is preserved
-        self.assertEqual(len(smoothed), len(counts))
-
-        # Check that smoothing reduces variance
-        self.assertLessEqual(np.std(smoothed), np.std(counts))
-
-        # Test with window=3
-        smoothed_3 = gs.moving_average(counts, window=3)
-        self.assertEqual(len(smoothed_3), len(counts))
-
-        # Middle element should be average of 3 points
-        # For index 5: (5 + 6 + 7) / 3 = 6.0
-        self.assertAlmostEqual(smoothed_3[5], 6.0)
-
-        # Test with invalid window size (even number)
-        self.assertRaises(ValueError, gs.moving_average, counts, window=4)
-
-        # Test with invalid window size (negative)
-        self.assertRaises(ValueError, gs.moving_average, counts, window=-1)
-
-        # Test with array shorter than window
-        short_array = [1, 2, 3]
-        self.assertRaises(ValueError, gs.moving_average, short_array, window=5)
-
-    def test_exponential_moving_average(self):
-        """tests for exponential moving average smoothing function"""
-        # Test with simple data
-        counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        smoothed = gs.exponential_moving_average(counts, alpha=0.3)
-
-        # Check length is preserved
-        self.assertEqual(len(smoothed), len(counts))
-
-        # First element should be unchanged
-        self.assertEqual(smoothed[0], counts[0])
-
-        # Second element: alpha * counts[1] + (1 - alpha) * smoothed[0]
-        # = 0.3 * 2 + 0.7 * 1 = 0.6 + 0.7 = 1.3
-        self.assertAlmostEqual(smoothed[1], 1.3)
-
-        # Test with different alpha values
-        smoothed_low = gs.exponential_moving_average(counts, alpha=0.1)
-        smoothed_high = gs.exponential_moving_average(counts, alpha=0.9)
-
-        # Lower alpha should result in smoother output
-        self.assertLessEqual(np.std(smoothed_low), np.std(smoothed_high))
-
-        # Test with invalid alpha (too low)
-        self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=0.0)
-
-        # Test with invalid alpha (too high)
-        self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=1.0)
-
-        # Test with invalid alpha (negative)
-        self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=-0.1)
-
-        # Test with invalid alpha (greater than 1)
-        self.assertRaises(ValueError, gs.exponential_moving_average, counts, alpha=1.5)
-
-    def test_five_point_smooth_correctness(self):
-        """Test that five_point_smooth produces correct results"""
-        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        result = gs.five_point_smooth(data)
-
-        # First two and last two elements should be unchanged
-        self.assertEqual(result[0], data[0])
-        self.assertEqual(result[1], data[1])
-        self.assertEqual(result[-2], data[-2])
-        self.assertEqual(result[-1], data[-1])
-
-        # Check middle element calculation using actual test data
-        # For index 2: (1/9) * (data[0] + data[4] + 2*data[3] + 2*data[1] + 3*data[2])
-        expected_idx2 = (1.0 / 9.0) * (data[0] + data[4] + 2 * data[3] + 2 * data[1] + 3 * data[2])
-        np.testing.assert_almost_equal(result[2], expected_idx2)
-
-    def test_three_point_smooth_correctness(self):
-        """Test that three_point_smooth produces correct results"""
-        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        result = gs.three_point_smooth(data)
-
-        # First and last elements should be unchanged
-        self.assertEqual(result[0], data[0])
-        self.assertEqual(result[-1], data[-1])
-
-        # Check middle element calculation
-        # For index 1: (1 + 2 + 3) / 3 = 2
-        expected_idx1 = (data[0] + data[1] + data[2]) / 3.0
-        np.testing.assert_almost_equal(result[1], expected_idx1)
-
-    def test_moving_average_correctness(self):
-        """Test that moving_average produces correct results"""
-        data = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-        result = gs.moving_average(data, window=5)
-
-        # Check middle element calculation
-        # For index 5 with window=5: mean of [4, 5, 6, 7, 8] = 6
-        expected_idx5 = np.mean(data[3:8])
-        np.testing.assert_almost_equal(result[5], expected_idx5)
-
-    def test_smoothing_maintains_signal_integrity(self):
-        """Test that smoothing preserves important signal properties"""
-        # Create a signal with known characteristics
-        data = np.concatenate([
-            np.zeros(100),
-            np.full(50, 100),  # Peak
-            np.zeros(100)
-        ])
-
-        # Apply smoothing
-        result_5pt = gs.five_point_smooth(data)
-        result_3pt = gs.three_point_smooth(data)
-        result_ma = gs.moving_average(data, window=5)
-
-        # All should maintain similar total counts (conservation)
-        np.testing.assert_allclose(np.sum(result_5pt), np.sum(data), rtol=0.1)
-        np.testing.assert_allclose(np.sum(result_3pt), np.sum(data), rtol=0.1)
-        np.testing.assert_allclose(np.sum(result_ma), np.sum(data), rtol=0.1)
-
-        # Peak location should be preserved (within a few bins)
-        peak_orig = np.argmax(data)
-        peak_5pt = np.argmax(result_5pt)
-        peak_3pt = np.argmax(result_3pt)
-        peak_ma = np.argmax(result_ma)
-
-        self.assertLess(abs(peak_5pt - peak_orig), 5)
-        self.assertLess(abs(peak_3pt - peak_orig), 5)
-        self.assertLess(abs(peak_ma - peak_orig), 5)
-
-    def test_getting_data(self):
-        """tests for getting data"""
-        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
-        self.assertTrue(len(spec.counts) > 0)
-
-    def test_background_calculation(self):
-        """tests for background calculation functions"""
-        counts = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-
-        # Test calc_bg with valid parameters (BackgroundMethod.TRAPEZOID)
-        bg = gs.calc_bg(counts, 2, 7, m=BackgroundMethod.TRAPEZOID)
-        self.assertIsInstance(bg, float)
-        self.assertGreaterEqual(bg, 0)
-
-        # Test estimate_background_trapezoid directly
-        bg_trap = gs.estimate_background_trapezoid(counts, 2, 7)
-        self.assertIsInstance(bg_trap, float)
-        self.assertGreaterEqual(bg_trap, 0)
-
-        # Test edge case: channels at the start
-        bg_start = gs.estimate_background_trapezoid(counts, 0, 3)
-        self.assertIsInstance(bg_start, float)
-
-        # Test edge case: channels at the end
-        bg_end = gs.estimate_background_trapezoid(counts, 7, 9)
-        self.assertIsInstance(bg_end, float)
-
-        # Test BackgroundMethod.LINEAR - linear interpolation
-        bg_linear = gs.calc_bg(counts, 2, 7, m=BackgroundMethod.LINEAR)
-        self.assertIsInstance(bg_linear, float)
-        self.assertGreaterEqual(bg_linear, 0)
-
-        # Test estimate_background_linear directly
-        bg_linear_direct = gs.estimate_background_linear(counts, 2, 7)
-        self.assertIsInstance(bg_linear_direct, float)
-        self.assertGreaterEqual(bg_linear_direct, 0)
-
-        # Test BackgroundMethod.STEP - step function
-        bg_step = gs.calc_bg(counts, 2, 7, m=BackgroundMethod.STEP)
-        self.assertIsInstance(bg_step, float)
-        self.assertGreaterEqual(bg_step, 0)
-
-        # Test estimate_background_step directly
-        bg_step_direct = gs.estimate_background_step(counts, 2, 7)
-        self.assertIsInstance(bg_step_direct, float)
-        self.assertGreaterEqual(bg_step_direct, 0)
-
-        # Test BackgroundMethod.SLIDING_AVERAGE - sliding window average
-        bg_sliding = gs.calc_bg(counts, 2, 7, m=BackgroundMethod.SLIDING_AVERAGE)
-        self.assertIsInstance(bg_sliding, float)
-        self.assertGreaterEqual(bg_sliding, 0)
-
-        # Test estimate_background_sliding_average directly
-        bg_sliding_direct = gs.estimate_background_sliding_average(counts, 2, 7)
-        self.assertIsInstance(bg_sliding_direct, float)
-        self.assertGreaterEqual(bg_sliding_direct, 0)
-
-        # Test invalid method number
-        with self.assertRaises(ValueError):
-            gs.calc_bg(counts, 2, 7, m=5)
-
-    def test_background_methods_comparison(self):
-        """Compare different background subtraction methods"""
-        # Create a synthetic peak with known background
-        x = np.arange(100)
-        background_level = 50.0
-        peak = 200 * np.exp(-((x - 50) ** 2) / (2 * 5 ** 2))
-        counts = background_level + peak
-
-        # Define peak region (channels 40-60)
-        c1, c2 = 40, 60
-
-        # All methods should give reasonable backgrounds
-        bg_trap = gs.calc_bg(counts, c1, c2, m=BackgroundMethod.TRAPEZOID)
-        bg_linear = gs.calc_bg(counts, c1, c2, m=BackgroundMethod.LINEAR)
-        bg_step = gs.calc_bg(counts, c1, c2, m=BackgroundMethod.STEP)
-        bg_sliding = gs.calc_bg(counts, c1, c2, m=BackgroundMethod.SLIDING_AVERAGE)
-
-        # All should be positive
-        self.assertGreater(bg_trap, 0)
-        self.assertGreater(bg_linear, 0)
-        self.assertGreater(bg_step, 0)
-        self.assertGreater(bg_sliding, 0)
-
-        # For a flat background, all methods should give similar results
-        # (within reasonable tolerance given the peak interference)
-        expected_bg = background_level * (c2 - c1)
-
-        # Check that all methods are within reasonable range of expected
-        # (allowing for variation due to peak edges)
-        for bg_value in [bg_trap, bg_linear, bg_step, bg_sliding]:
-            self.assertGreater(bg_value, expected_bg * 0.5)
-            self.assertLess(bg_value, expected_bg * 2.0)
-
-    def test_background_edge_cases_all_methods(self):
-        """Test edge cases for all background methods"""
-        counts = np.array([5, 10, 15, 20, 25, 30, 35, 40, 45, 50])
-
-        # Test at spectrum edges for all methods
-        for method in BackgroundMethod:
-            # At start of spectrum
-            bg_start = gs.calc_bg(counts, 0, 3, m=method)
-            self.assertIsInstance(bg_start, float)
-            self.assertGreaterEqual(bg_start, 0)
-
-            # At end of spectrum
-            bg_end = gs.calc_bg(counts, 7, 9, m=method)
-            self.assertIsInstance(bg_end, float)
-            self.assertGreaterEqual(bg_end, 0)
-
-            # Single channel peak
-            bg_single = gs.calc_bg(counts, 5, 6, m=method)
-            self.assertIsInstance(bg_single, float)
-            self.assertGreaterEqual(bg_single, 0)
-
-    def test_net_counts(self):
-        """tests for net counts calculation"""
-        counts = np.array([10, 20, 30, 40, 50, 60, 70, 80, 90, 100])
-
-        # Test net_counts function
-        nc = gs.net_counts(counts, 2, 7, m=BackgroundMethod.TRAPEZOID)
-        self.assertIsInstance(nc, float)
-
-    def test_gaussian(self):
-        """tests for gaussian function"""
-        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
-        a = 10.0
-        x0 = 3.0
-        sigma = 1.0
-
-        result = gs.gaussian(x, a, x0, sigma)
-        self.assertIsInstance(result, np.ndarray)
-        self.assertEqual(len(result), len(x))
-        # Peak should be at x0
-        max_idx = np.argmax(result)
-        self.assertEqual(x[max_idx], x0)
-
-    def test_fit_peak(self):
-        """tests for peak fitting function"""
-        # Create synthetic peak data
-        x = np.linspace(0, 10, 50)
-        # Create a Gaussian peak
-        a = 100.0
-        x0 = 5.0
-        sigma = 1.0
-        y = gs.gaussian(x, a, x0, sigma)
-        # Add some noise
-        y = y + np.random.normal(0, 1, len(y))
-
-        # Fit the peak
-        popt, pcov = gs.fit_peak(x, y)
-        self.assertEqual(len(popt), 3)
-        # Check that fitted parameters are reasonable
-        self.assertAlmostEqual(popt[1], x0, delta=0.5)  # x0
-        self.assertAlmostEqual(popt[2], sigma, delta=0.5)  # sigma
-
-    def test_double_gaussian(self):
-        """tests for double_gaussian function"""
-        x = np.linspace(0, 20, 100)
-        a1, x01, sigma1 = 100.0, 5.0, 1.0
-        a2, x02, sigma2 = 80.0, 15.0, 1.2
-        y = gs.double_gaussian(x, a1, x01, sigma1, a2, x02, sigma2)
-
-        # Output array has the correct length
-        self.assertEqual(len(y), len(x))
-        # Values are non-negative
-        self.assertTrue(np.all(y >= 0))
-        # Maximum is near one of the two peak centres
-        peak_x = x[np.argmax(y)]
-        self.assertTrue(abs(peak_x - x01) < 1.5 or abs(peak_x - x02) < 1.5)
-        # Equals sum of individual Gaussians
-        y1 = gs.gaussian(x, a1, x01, sigma1)
-        y2 = gs.gaussian(x, a2, x02, sigma2)
-        np.testing.assert_array_almost_equal(y, y1 + y2)
-
-    def test_fit_doublet(self):
-        """tests for doublet fitting function"""
-        np.random.seed(42)
-        x = np.linspace(0, 20, 200)
-        a1, x01, sigma1 = 100.0, 7.0, 0.8
-        a2, x02, sigma2 = 90.0, 10.0, 0.9
-        y = gs.double_gaussian(x, a1, x01, sigma1, a2, x02, sigma2)
-        y = y + np.random.normal(0, 1, len(y))
-
-        popt, pcov = gs.fit_doublet(x, y)
-
-        # Returns 6 parameters
-        self.assertEqual(len(popt), 6)
-        # Recovered centres should be close to the true values (within 1 unit)
-        centres = sorted([popt[1], popt[4]])
-        self.assertAlmostEqual(centres[0], min(x01, x02), delta=1.0)
-        self.assertAlmostEqual(centres[1], max(x01, x02), delta=1.0)
-
-    def test_fit_doublet_fallback(self):
-        """tests fit_doublet when no two distinct local maxima exist"""
-        np.random.seed(7)
-        # Construct a smooth doublet with no visible saddle point (heavy overlap)
-        x = np.linspace(0, 10, 100)
-        a1, x01, sigma1 = 100.0, 4.5, 1.5
-        a2, x02, sigma2 = 100.0, 5.5, 1.5
-        y = gs.double_gaussian(x, a1, x01, sigma1, a2, x02, sigma2)
-
-        popt, pcov = gs.fit_doublet(x, y)
-        self.assertEqual(len(popt), 6)
-        # Amplitudes should be positive
-        self.assertGreater(popt[0], 0)
-        self.assertGreater(popt[3], 0)
 
     def test_identify_doublets(self):
         """tests for identify_doublets function"""
@@ -527,347 +118,64 @@ class analysis_test_case(unittest.TestCase):
 
     def test_mariscotti_peak_finder_basic(self):
         """tests for Mariscotti peak finding function - basic functionality"""
-        # Create synthetic data with a clear peak
         x = np.arange(100)
-        # Create a Gaussian peak at position 50
         counts = 10 + 100 * np.exp(-((x - 50) ** 2) / (2 * 5 ** 2))
 
-        # Run Mariscotti peak finder with auto threshold
         smoothed, peaks = gs.mariscotti_peak_finder(counts)
 
-        # Verify output types and shapes
         self.assertIsInstance(smoothed, np.ndarray)
         self.assertIsInstance(peaks, np.ndarray)
         self.assertEqual(len(smoothed), len(counts))
-
-        # Should find at least one peak
         self.assertGreater(len(peaks), 0)
-
-        # Peak should be near position 50
         peak_found_near_50 = any(abs(p - 50) < 10 for p in peaks)
         self.assertTrue(peak_found_near_50, "Expected to find a peak near position 50")
 
     def test_mariscotti_peak_finder_multiple_peaks(self):
         """tests for Mariscotti peak finding with multiple peaks"""
-        # Create synthetic data with two peaks
         x = np.arange(200)
         counts = (10 +
                   80 * np.exp(-((x - 50) ** 2) / (2 * 5 ** 2)) +
                   60 * np.exp(-((x - 150) ** 2) / (2 * 5 ** 2)))
 
-        # Run Mariscotti peak finder with auto threshold
         smoothed, peaks = gs.mariscotti_peak_finder(counts)
-
-        # Should find multiple peaks
         self.assertGreaterEqual(len(peaks), 1)
 
     def test_mariscotti_peak_finder_no_peaks(self):
         """tests for Mariscotti peak finding with flat data"""
-        # Create flat data - should find no peaks
         counts = np.ones(100) * 50
-
         smoothed, peaks = gs.mariscotti_peak_finder(counts, threshold=-0.1)
-
-        # Should find no peaks (or very few)
         self.assertEqual(len(peaks), 0)
 
     def test_mariscotti_peak_finder_edge_cases(self):
         """tests for Mariscotti peak finding edge cases"""
-        # Test with minimum size array
         counts_min = np.array([1, 2, 3, 4, 5])
         smoothed, peaks = gs.mariscotti_peak_finder(counts_min)
         self.assertEqual(len(smoothed), 5)
         self.assertIsInstance(peaks, np.ndarray)
 
-        # Test with array that's too short
         short_array = [1, 2, 3, 4]
         self.assertRaises(ValueError, gs.mariscotti_peak_finder, short_array)
 
     def test_mariscotti_peak_finder_parameters(self):
         """tests for Mariscotti peak finding with different parameters"""
-        # Create synthetic data
         x = np.arange(100)
         counts = 10 + 100 * np.exp(-((x - 50) ** 2) / (2 * 5 ** 2))
 
-        # Test with different smoothing iterations
         smoothed1, peaks1 = gs.mariscotti_peak_finder(counts, smooth_iterations=1)
         smoothed2, peaks2 = gs.mariscotti_peak_finder(counts, smooth_iterations=3)
-
         self.assertEqual(len(smoothed1), len(counts))
         self.assertEqual(len(smoothed2), len(counts))
 
-        # Test with explicit threshold values
         smoothed_low, peaks_low = gs.mariscotti_peak_finder(counts, threshold=-0.1)
         smoothed_high, peaks_high = gs.mariscotti_peak_finder(counts, threshold=-10.0)
-
-        # Higher (less negative) threshold should find more or equal peaks
         self.assertGreaterEqual(len(peaks_low), len(peaks_high))
 
-        # Test with auto threshold (None)
         smoothed_auto, peaks_auto = gs.mariscotti_peak_finder(counts, threshold=None)
         self.assertIsInstance(peaks_auto, np.ndarray)
         self.assertEqual(len(smoothed_auto), len(counts))
 
-
-    def test_fit_peak_returns_pcov(self):
-        """fit_peak must return (popt, pcov) and pcov must be a 3x3 matrix."""
-        np.random.seed(0)
-        x = np.linspace(0, 10, 50)
-        y = gs.gaussian(x, 100.0, 5.0, 1.0) + np.random.normal(0, 1, 50)
-        popt, pcov = gs.fit_peak(x, y)
-        self.assertEqual(len(popt), 3)
-        self.assertEqual(pcov.shape, (3, 3))
-        # Variances must be non-negative
-        self.assertTrue(np.all(np.diag(pcov) >= 0))
-
-    def test_fit_doublet_returns_pcov(self):
-        """fit_doublet must return (popt, pcov) and pcov must be a 6x6 matrix."""
-        np.random.seed(42)
-        x = np.linspace(0, 20, 200)
-        y = gs.double_gaussian(x, 100.0, 7.0, 0.8, 90.0, 10.0, 0.9)
-        y = y + np.random.normal(0, 2, 200)
-        popt, pcov = gs.fit_doublet(x, y)
-        self.assertEqual(len(popt), 6)
-        self.assertEqual(pcov.shape, (6, 6))
-
-    def test_gaussian_area(self):
-        """gaussian_area must equal a * |sigma| * sqrt(2*pi)."""
-        a, sigma = 50.0, 2.0
-        expected = a * sigma * np.sqrt(2.0 * np.pi)
-        self.assertAlmostEqual(gs.gaussian_area(a, sigma), expected)
-        # Negative sigma (allowed: absolute value is used)
-        self.assertAlmostEqual(gs.gaussian_area(a, -sigma), expected)
-
-    def test_gaussian_area_uncertainty(self):
-        """gaussian_area_uncertainty must return a non-negative float."""
-        np.random.seed(2)
-        x = np.linspace(0, 10, 60)
-        y = gs.gaussian(x, 80.0, 5.0, 1.0) + np.random.normal(0, 0.5, 60)
-        popt, pcov = gs.fit_peak(x, y)
-        a, _x0, sigma = popt
-        unc = gs.gaussian_area_uncertainty(a, sigma, pcov)
-        self.assertIsInstance(unc, float)
-        self.assertGreaterEqual(unc, 0.0)
-
-    def test_fit_peak_area(self):
-        """fit_peak_area must return a positive area with non-negative uncertainty."""
-        np.random.seed(3)
-        x = np.linspace(0, 10, 60)
-        a, x0, sigma = 100.0, 5.0, 1.0
-        y = gs.gaussian(x, a, x0, sigma) + np.random.normal(0, 1, 60)
-        area, unc = gs.fit_peak_area(x, y)
-        expected_area = gs.gaussian_area(a, sigma)
-        # Area should be close to analytic expectation
-        self.assertAlmostEqual(area, expected_area, delta=expected_area * 0.1)
-        self.assertGreaterEqual(unc, 0.0)
-
-    def test_fit_doublet_areas(self):
-        """fit_doublet_areas must return sensible areas and non-negative uncertainties."""
-        np.random.seed(4)
-        x = np.linspace(0, 20, 200)
-        a1, x01, s1 = 100.0, 7.0, 0.8
-        a2, x02, s2 = 90.0, 10.0, 0.9
-        y = gs.double_gaussian(x, a1, x01, s1, a2, x02, s2)
-        y = y + np.random.normal(0, 1, 200)
-        (area1, unc1), (area2, unc2) = gs.fit_doublet_areas(x, y)
-        self.assertGreater(area1, 0.0)
-        self.assertGreater(area2, 0.0)
-        self.assertGreaterEqual(unc1, 0.0)
-        self.assertGreaterEqual(unc2, 0.0)
-
-    def test_estimate_background_trapezoid_uncertainty(self):
-        """Trapezoid background uncertainty must be non-negative."""
-        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
-        unc = gs.estimate_background_trapezoid_uncertainty(counts, 3, 7)
-        self.assertGreaterEqual(unc, 0.0)
-
-    def test_estimate_background_linear_uncertainty(self):
-        """Linear background uncertainty must be non-negative."""
-        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
-        unc = gs.estimate_background_linear_uncertainty(counts, 3, 7)
-        self.assertGreaterEqual(unc, 0.0)
-
-    def test_estimate_background_step_uncertainty(self):
-        """Step background uncertainty must be non-negative."""
-        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
-        unc = gs.estimate_background_step_uncertainty(counts, 3, 7)
-        self.assertGreaterEqual(unc, 0.0)
-
-    def test_estimate_background_sliding_average_uncertainty(self):
-        """Sliding-average background uncertainty must be non-negative."""
-        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
-        unc = gs.estimate_background_sliding_average_uncertainty(counts, 3, 7)
-        self.assertGreaterEqual(unc, 0.0)
-
-    def test_calc_bg_uncertainty_dispatches(self):
-        """calc_bg_uncertainty must dispatch to all four methods without error."""
-        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
-        for method in gs.BackgroundMethod:
-            unc = gs.calc_bg_uncertainty(counts, 3, 7, method)
-            self.assertGreaterEqual(unc, 0.0)
-        # Invalid method raises ValueError
-        self.assertRaises(ValueError, gs.calc_bg_uncertainty, counts, 3, 7, 99)
-
-    def test_net_counts_uncertainty(self):
-        """net_counts_uncertainty must return (net, uncertainty) with uncertainty >= 0."""
-        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
-        for method in gs.BackgroundMethod:
-            net, unc = gs.net_counts_uncertainty(counts, 3, 7, method)
-            self.assertIsInstance(net, float)
-            self.assertGreaterEqual(unc, 0.0)
-
-    def test_net_counts_uncertainty_poisson_scaling(self):
-        """Uncertainty grows with signal strength (Poisson: sigma ~ sqrt(N))."""
-        low_counts = np.array([1, 1, 1, 5, 10, 8, 5, 1, 1, 1], dtype=float)
-        high_counts = low_counts * 100.0
-        _, unc_low = gs.net_counts_uncertainty(low_counts, 3, 7)
-        _, unc_high = gs.net_counts_uncertainty(high_counts, 3, 7)
-        self.assertGreater(unc_high, unc_low)
-        # Uncertainty should scale roughly as sqrt(N): sqrt(100) = 10x
-        self.assertAlmostEqual(unc_high / unc_low, 10.0, delta=2.0)
-
-    def test_peak_area_with_background_sensitivity(self):
-        """peak_area_with_background_sensitivity must return mean, std, and per-method dict."""
-        counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
-        mean_net, std_net, results = gs.peak_area_with_background_sensitivity(counts, 3, 7)
-        self.assertIsInstance(mean_net, float)
-        self.assertGreaterEqual(std_net, 0.0)
-        # Should have one entry per BackgroundMethod
-        self.assertEqual(len(results), len(gs.BackgroundMethod))
-        for name in results:
-            self.assertIn(name, [m.name for m in gs.BackgroundMethod])
-
-    def test_peak_area_sensitivity_flat_background(self):
-        """When background is truly flat all methods should agree closely."""
-        # Flat background of 10, peak of 100 at centre
-        counts = np.array([10, 10, 10, 110, 200, 110, 10, 10, 10, 10], dtype=float)
-        _mean, std_net, _results = gs.peak_area_with_background_sensitivity(counts, 3, 7)
-        # All methods should give similar background → small std
-        self.assertLess(std_net, 50.0)
-
     # ------------------------------------------------------------------
-    # Option 4 – FWHM helpers
-    # ------------------------------------------------------------------
-
-    def test_peak_fwhm_known_value(self):
-        """FWHM = 2*sqrt(2*ln2)*sigma ≈ 2.3548*sigma."""
-        sigma = 2.0
-        expected = 2.0 * np.sqrt(2.0 * np.log(2.0)) * sigma
-        self.assertAlmostEqual(gs.peak_fwhm(sigma), expected)
-
-    def test_peak_fwhm_negative_sigma(self):
-        """peak_fwhm uses absolute value – result equals fwhm for |sigma|."""
-        self.assertAlmostEqual(gs.peak_fwhm(-1.5), gs.peak_fwhm(1.5))
-
-    def test_peak_fwhm_uncertainty_scaling(self):
-        """FWHM uncertainty scales linearly with sigma_unc."""
-        self.assertAlmostEqual(
-            gs.peak_fwhm_uncertainty(1.0, 0.1),
-            gs.peak_fwhm_uncertainty(1.0, 0.2) / 2.0,
-        )
-
-    def test_fit_peak_fwhm_returns_positive(self):
-        """fit_peak_fwhm must return a positive FWHM and non-negative uncertainty."""
-        np.random.seed(10)
-        x = np.linspace(0, 10, 60)
-        y = gs.gaussian(x, 100.0, 5.0, 1.0) + np.random.normal(0, 0.5, 60)
-        fwhm, fwhm_unc = gs.fit_peak_fwhm(x, y)
-        self.assertGreater(fwhm, 0.0)
-        self.assertGreaterEqual(fwhm_unc, 0.0)
-
-    def test_fit_peak_fwhm_matches_peak_fwhm(self):
-        """fit_peak_fwhm(x, y) must equal peak_fwhm(sigma) from fit_peak."""
-        np.random.seed(11)
-        x = np.linspace(0, 10, 60)
-        y = gs.gaussian(x, 100.0, 5.0, 1.2) + np.random.normal(0, 0.5, 60)
-        popt, pcov = gs.fit_peak(x, y)
-        expected_fwhm = gs.peak_fwhm(popt[2])
-        expected_unc = gs.peak_fwhm_uncertainty(popt[2], np.sqrt(pcov[2, 2]))
-        # fit_peak_fwhm must produce exactly the same values
-        np.random.seed(11)
-        x2 = np.linspace(0, 10, 60)
-        y2 = gs.gaussian(x2, 100.0, 5.0, 1.2) + np.random.normal(0, 0.5, 60)
-        fwhm, fwhm_unc = gs.fit_peak_fwhm(x2, y2)
-        self.assertAlmostEqual(fwhm, expected_fwhm)
-        self.assertAlmostEqual(fwhm_unc, expected_unc)
-
-    def test_fit_peak_fwhm_known_sigma(self):
-        """For a noise-free Gaussian the FWHM should be close to the analytic value."""
-        x = np.linspace(0, 10, 200)
-        sigma = 1.0
-        y = gs.gaussian(x, 200.0, 5.0, sigma)
-        fwhm, _ = gs.fit_peak_fwhm(x, y)
-        expected = gs.peak_fwhm(sigma)
-        self.assertAlmostEqual(fwhm, expected, delta=0.05)
-
-    # ------------------------------------------------------------------
-    # Option 5 – Goodness-of-fit statistics
-    # ------------------------------------------------------------------
-
-    def test_fit_peak_chi2_perfect_fit(self):
-        """For a noise-free Gaussian fit, chi2 should be near zero."""
-        x = np.linspace(0, 10, 100)
-        y = gs.gaussian(x, 200.0, 5.0, 1.0)
-        popt, _ = gs.fit_peak(x, y)
-        chi2, reduced_chi2, ndof = gs.fit_peak_chi2(x, y, popt)
-        self.assertAlmostEqual(chi2, 0.0, delta=1e-6)
-        self.assertEqual(ndof, len(x) - 3)
-        self.assertGreater(reduced_chi2, 0.0)
-
-    def test_fit_doublet_chi2_perfect_fit(self):
-        """For a noise-free doublet fit, chi2 should be near zero."""
-        x = np.linspace(0, 20, 150)
-        y = gs.double_gaussian(x, 100.0, 7.0, 0.8, 90.0, 13.0, 0.9)
-        popt, _ = gs.fit_doublet(x, y)
-        chi2, reduced_chi2, ndof = gs.fit_doublet_chi2(x, y, popt)
-        self.assertAlmostEqual(chi2, 0.0, delta=1e-4)
-        self.assertEqual(ndof, len(x) - 6)
-
-    def test_fit_chi2_ndof(self):
-        """fit_chi2 ndof = len(y) - n_params."""
-        x = np.linspace(0, 10, 50)
-        y = gs.gaussian(x, 100.0, 5.0, 1.0)
-        popt, _ = gs.fit_peak(x, y)
-        _, _, ndof = gs.fit_chi2(x, y, popt, gs.gaussian, n_params=3)
-        self.assertEqual(ndof, 47)
-
-    def test_fit_chi2_poor_fit_higher_value(self):
-        """A deliberately bad fit should give a larger chi2 than the true fit."""
-        np.random.seed(20)
-        x = np.linspace(0, 10, 80)
-        y = gs.gaussian(x, 100.0, 5.0, 1.0) + np.random.normal(0, 1, 80)
-        y = np.maximum(y, 0.0)
-        popt_good, _ = gs.fit_peak(x, y)
-        chi2_good, _, _ = gs.fit_peak_chi2(x, y, popt_good)
-        # A wrong centroid gives a worse fit
-        popt_bad = np.array([popt_good[0], popt_good[1] + 2.0, popt_good[2]])
-        chi2_bad, _, _ = gs.fit_peak_chi2(x, y, popt_bad)
-        self.assertGreater(chi2_bad, chi2_good)
-
-    def test_fit_chi2_zero_bin_handling(self):
-        """Bins with zero counts must not cause division by zero."""
-        x = np.linspace(0, 10, 50)
-        y = gs.gaussian(x, 100.0, 5.0, 1.0)
-        # Force some bins to zero
-        y_with_zeros = y.copy()
-        y_with_zeros[:5] = 0.0
-        popt, _ = gs.fit_peak(x, y)
-        chi2, reduced_chi2, _ = gs.fit_peak_chi2(x, y_with_zeros, popt)
-        self.assertIsInstance(chi2, float)
-        self.assertFalse(np.isnan(chi2))
-
-    def test_fit_chi2_inf_reduced_chi2_when_no_dof(self):
-        """If ndof <= 0, reduced_chi2 should be inf."""
-        x = np.array([1.0, 2.0, 3.0])
-        y = gs.gaussian(x, 10.0, 2.0, 0.5)
-        popt, _ = gs.fit_peak(x, y)
-        # n_params == len(y) means ndof == 0
-        _, reduced_chi2, ndof = gs.fit_chi2(x, y, popt, gs.gaussian, n_params=len(y))
-        self.assertEqual(ndof, 0)
-        self.assertEqual(reduced_chi2, float("inf"))
-
-    # ------------------------------------------------------------------
-    # Option 3 – Activity calculation
+    # Activity calculation
     # ------------------------------------------------------------------
 
     def test_calc_activity_known_value(self):
@@ -923,6 +231,33 @@ class analysis_test_case(unittest.TestCase):
         act = gs.calc_activity(net, T, I, eps)
         act_unc = gs.calc_activity_uncertainty(net_unc, T, I, eps)
         self.assertAlmostEqual(act / act_unc, net / net_unc, places=10)
+
+
+class backward_compat_test_case(unittest.TestCase):
+    """Smoke tests: gs_analysis must still re-export all sub-module symbols."""
+
+    def test_smoothing_re_exports(self):
+        self.assertTrue(callable(gs.five_point_smooth))
+        self.assertTrue(callable(gs.three_point_smooth))
+        self.assertTrue(callable(gs.moving_average))
+        self.assertTrue(callable(gs.exponential_moving_average))
+
+    def test_background_re_exports(self):
+        self.assertTrue(callable(gs.gross_count))
+        self.assertTrue(callable(gs.calc_bg))
+        self.assertTrue(callable(gs.calc_bg_uncertainty))
+        self.assertTrue(hasattr(gs, "BackgroundMethod"))
+
+    def test_peak_fitting_re_exports(self):
+        self.assertTrue(callable(gs.gaussian))
+        self.assertTrue(callable(gs.double_gaussian))
+        self.assertTrue(callable(gs.get_peak_roi))
+        self.assertTrue(callable(gs.fit_peak))
+        self.assertTrue(callable(gs.fit_doublet))
+        self.assertTrue(callable(gs.net_counts))
+        self.assertTrue(callable(gs.net_counts_uncertainty))
+        self.assertTrue(callable(gs.peak_fwhm))
+        self.assertTrue(callable(gs.fit_chi2))
 
 
 if __name__ == "__main__":
