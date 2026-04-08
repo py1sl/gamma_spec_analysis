@@ -28,9 +28,12 @@ dev = [
 # after `pip install .` or `pip install -e .`.
 py-modules = [
     "gs_analysis",
+    "gs_background",
     "gs_creator",
     "gs_multispectral_scaling",
+    "gs_peak_fitting",
     "gs_plotting",
+    "gs_smoothing",
     "gs_spe_reading",
     "gs_spe_writer",
     "ph_spectrum",
