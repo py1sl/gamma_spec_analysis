@@ -1,7 +1,10 @@
 import unittest
+from pathlib import Path
 import numpy as np
 import gs_smoothing as sm
 import gs_spe_reading
+
+TEST_DATA = Path(__file__).resolve().parents[1] / "test_data"
 
 
 class smoothing_test_case(unittest.TestCase):
@@ -9,7 +12,7 @@ class smoothing_test_case(unittest.TestCase):
 
     def test_smoothing(self):
         """tests related to five_point_smooth"""
-        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
         smoothed = sm.five_point_smooth(spec.counts)
         self.assertEqual(len(smoothed), len(spec.counts))
         self.assertEqual(smoothed[0], spec.counts[0])

@@ -1,9 +1,12 @@
 import os
 import tempfile
 import unittest
+from pathlib import Path
 import gs_spe_reading as gsr
 import gs_spe_writer as gsw
 from ph_spectrum import PhSpectrum
+
+TEST_DATA = Path(__file__).resolve().parents[1] / "test_data"
 
 
 class write_dollar_spe_test_case(unittest.TestCase):
@@ -86,7 +89,7 @@ class write_dollar_spe_test_case(unittest.TestCase):
 
     def test_roundtrip_full_file(self):
         """reading and rewriting a real SPE file produces equivalent spectrum"""
-        original = gsr.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
+        original = gsr.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
         roundtripped = self._write_and_read(original)
         self.assertEqual(len(roundtripped.counts), len(original.counts))
         self.assertTrue((roundtripped.counts == original.counts).all())
