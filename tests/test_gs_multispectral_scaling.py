@@ -332,6 +332,25 @@ class TestTrackPeakActivity(unittest.TestCase):
         )
         self.assertEqual(len(times), 3)
 
+    def test_returns_rate_uncertainties_when_requested(self):
+        specs = self._make_decaying_series(n=4)
+        times, rates, uncertainties = gms.track_peak_activity(
+            specs, energy=256.0, return_uncertainties=True
+        )
+        self.assertEqual(len(times), 4)
+        self.assertEqual(len(rates), 4)
+        self.assertEqual(len(uncertainties), 4)
+        self.assertTrue(np.all(np.isfinite(uncertainties)))
+        self.assertTrue(np.all(uncertainties > 0.0))
+
+    def test_uncertainty_is_nan_when_peak_is_out_of_range(self):
+        specs = [_make_peak_spectrum(n_channels=512, peak_channel=256)]
+        _, rates, uncertainties = gms.track_peak_activity(
+            specs, energy=9999.0, return_uncertainties=True
+        )
+        self.assertTrue(np.isnan(rates[0]))
+        self.assertTrue(np.isnan(uncertainties[0]))
+
 
 # ---------------------------------------------------------------------------
 # Tests: estimate_half_life
@@ -390,8 +409,42 @@ class TestEstimateHalfLife(unittest.TestCase):
         with self.assertRaises(ValueError):
             gms.estimate_half_life(times, rates)
 
+    def test_uncertainties_weight_the_fit_and_covariance(self):
+        """A low-weight outlier should have little influence on the fit."""
+        true_hl = 300.0
+        times, rates = self._synthetic_data(half_life_s=true_hl)
+        rates[5] *= 2.0
+        uncertainties = np.ones_like(rates)
+        uncertainties[5] = 1e4
+
+        unweighted_hl, _ = gms.estimate_half_life(times, rates)
+        weighted_hl, weighted_unc = gms.estimate_half_life(
+            times, rates, count_rate_uncertainties=uncertainties
+        )
+
+        self.assertLess(abs(weighted_hl - true_hl), abs(unweighted_hl - true_hl))
+        self.assertGreater(weighted_unc, 0.0)
+        self.assertTrue(np.isfinite(weighted_unc))
+
+    def test_invalid_uncertainties_are_ignored(self):
+        times, rates = self._synthetic_data(half_life_s=300.0, n=8)
+        uncertainties = np.ones_like(rates)
+        uncertainties[2] = np.nan
+        uncertainties[5] = 0.0
+        hl, _ = gms.estimate_half_life(
+            times, rates, count_rate_uncertainties=uncertainties
+        )
+        self.assertAlmostEqual(hl, 300.0, delta=1.0)
+
+    def test_raises_on_mismatched_uncertainty_length(self):
+        times, rates = self._synthetic_data(n=5)
+        with self.assertRaises(ValueError):
+            gms.estimate_half_life(
+                times, rates, count_rate_uncertainties=np.ones(4)
+            )
+
     def test_integration_with_track_peak_activity(self):
-        """track_peak_activity output can be fed directly into estimate_half_life."""
+        """Tracked rates and uncertainties feed into weighted half-life fitting."""
         half_life_s = 300.0
         lam = math.log(2) / half_life_s
         t0 = datetime(2024, 1, 1, 0, 0, 0)
@@ -409,8 +462,14 @@ class TestEstimateHalfLife(unittest.TestCase):
                 real_time=dt_s,
                 start_time=ts,
             ))
-        elapsed_times, count_rates = gms.track_peak_activity(specs, energy=200.0)
-        hl, hl_unc = gms.estimate_half_life(elapsed_times, count_rates)
+        elapsed_times, count_rates, rate_uncertainties = gms.track_peak_activity(
+            specs, energy=200.0, return_uncertainties=True
+        )
+        hl, hl_unc = gms.estimate_half_life(
+            elapsed_times,
+            count_rates,
+            count_rate_uncertainties=rate_uncertainties,
+        )
         # Allow generous tolerance because net counts include background
         self.assertAlmostEqual(hl, half_life_s, delta=half_life_s * 0.3)
         self.assertGreaterEqual(hl_unc, 0.0)
