@@ -1,9 +1,12 @@
 import unittest
+from pathlib import Path
 import numpy as np
 import gs_peak_fitting as pf
 import gs_analysis
 import gs_spe_reading
 from gs_background import BackgroundMethod
+
+TEST_DATA = Path(__file__).resolve().parents[1] / "test_data"
 
 
 class peak_fitting_test_case(unittest.TestCase):
@@ -23,7 +26,7 @@ class peak_fitting_test_case(unittest.TestCase):
 
     def test_roi(self):
         """tests for extracting a region of interest"""
-        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
         ebins = gs_analysis.generate_ebins(spec)
         peak_ebin, data = pf.get_peak_roi(230, spec.counts, ebins)
         self.assertEqual(len(data), 20)

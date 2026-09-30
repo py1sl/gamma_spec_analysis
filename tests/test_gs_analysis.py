@@ -1,9 +1,12 @@
 import unittest
+from pathlib import Path
 import numpy as np
 import gs_analysis as gs
 from gs_analysis import EfficiencyFitType
 import gs_spe_reading
 import ph_spectrum
+
+TEST_DATA = Path(__file__).resolve().parents[1] / "test_data"
 
 
 class analysis_test_case(unittest.TestCase):
@@ -23,7 +26,7 @@ class analysis_test_case(unittest.TestCase):
         self.assertFalse(gs.find_energy_pos(ebins, 0))
 
         # generating ebins
-        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
         ebins = gs.generate_ebins(spec)
         self.assertEqual(len(ebins), len(spec.counts))
 
@@ -94,7 +97,7 @@ class analysis_test_case(unittest.TestCase):
 
     def test_peak_finder(self):
         """tests for peak finding function"""
-        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
 
         # Run peak finder with reasonable parameters
         smoothed, peaks = gs.peak_finder(spec.counts, prominence=100, wlen=50)
@@ -106,7 +109,7 @@ class analysis_test_case(unittest.TestCase):
 
     def test_peak_counts(self):
         """tests for peak counts calculation"""
-        spec = gs_spe_reading.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
+        spec = gs_spe_reading.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
         ebins = gs.generate_ebins(spec)
         smoothed, peaks = gs.peak_finder(spec.counts, prominence=100, wlen=50)
 

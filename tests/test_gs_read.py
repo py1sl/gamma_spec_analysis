@@ -1,5 +1,8 @@
 import unittest
+from pathlib import Path
 import gs_spe_reading as gsr
+
+TEST_DATA = Path(__file__).resolve().parents[1] / "test_data"
 
 
 class read_ascii_dollar_spe_test_case(unittest.TestCase):
@@ -7,14 +10,14 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
 
     def test_read_file(self):
         """tests related to the initial file reading"""
-        data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
+        data = gsr.read_file(TEST_DATA / "Ba_133_raised_1.Spe")
         self.assertEqual(len(data), 8261)
         self.assertEqual(data[0], "$SPEC_ID:")
         self.assertEqual(data[-2], "3")
 
     def test_read_times(self):
         """tests related to measurement times and  dates"""
-        data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
+        data = gsr.read_file(TEST_DATA / "Ba_133_raised_1.Spe")
         keywords_map = gsr.get_dollar_keywords(data)
         self.assertEqual(gsr.get_live_time(data, keywords_map), 326)
         self.assertEqual(gsr.get_real_time(data, keywords_map), 431)
@@ -22,7 +25,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
 
     def test_get_fits(self):
         """tests related to the energy, efficiency and shape calibration"""
-        data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
+        data = gsr.read_file(TEST_DATA / "Ba_133_raised_1.Spe")
         keywords_map = gsr.get_dollar_keywords(data)
         e_data = gsr.get_energy_fit_coefficients(data, keywords_map)
         self.assertEqual(len(e_data), 2)
@@ -31,7 +34,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
 
     def test_get_counts(self):
         """tests about reading to count data"""
-        data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
+        data = gsr.read_file(TEST_DATA / "Ba_133_raised_1.Spe")
         keywords_map = gsr.get_dollar_keywords(data)
         counts = gsr.get_counts(data, keywords_map)
         self.assertEqual(len(counts), 8192)
@@ -40,7 +43,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
 
     def test_get_dollar_keywords_presence(self):
         """Ensure expected keywords exist in the real test .Spe file"""
-        data = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
+        data = gsr.read_file(TEST_DATA / "Ba_133_raised_1.Spe")
         kws = gsr.get_dollar_keywords(data)
 
         # expected keywords (adjust if your file uses different tags)
@@ -57,7 +60,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
     def test_read_dollar_spe(self):
         """testing the read $ spe function"""
 
-        spec = gsr.read_dollar_spe("../test_data/Ba_133_raised_1.Spe")
+        spec = gsr.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
         self.assertEqual(len(spec.counts), 8192)
         e_data = spec.energy_fit_coefficients
         self.assertEqual(len(e_data), 2)
@@ -67,7 +70,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
 
     def test_get_mca_cal(self):
         """tests related to reading MCA calibration data"""
-        data = gsr.read_file("../test_data/Co_60_raised_1.Spe")
+        data = gsr.read_file(TEST_DATA / "Co_60_raised_1.Spe")
         keywords_map = gsr.get_dollar_keywords(data)
         mca_cal = gsr.get_mca_cal(data, keywords_map)
         self.assertIsNotNone(mca_cal)
@@ -80,7 +83,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
 
     def test_get_shape_cal(self):
         """tests related to reading shape calibration data"""
-        data = gsr.read_file("../test_data/Co_60_raised_1.Spe")
+        data = gsr.read_file(TEST_DATA / "Co_60_raised_1.Spe")
         keywords_map = gsr.get_dollar_keywords(data)
         shape_cal = gsr.get_shape_cal(data, keywords_map)
         self.assertIsNotNone(shape_cal)
@@ -92,7 +95,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
 
     def test_read_dollar_spe_with_keywords(self):
         """testing that keywords are populated in the PhSpectrum object"""
-        spec = gsr.read_dollar_spe("../test_data/Co_60_raised_1.Spe")
+        spec = gsr.read_dollar_spe(TEST_DATA / "Co_60_raised_1.Spe")
         self.assertIn('mca_cal', spec.keywords)
         self.assertIn('shape_cal', spec.keywords)
 
@@ -109,7 +112,7 @@ class read_ascii_dollar_spe_test_case(unittest.TestCase):
 class read_free_text_spe_test_case(unittest.TestCase):
     """tests for the free-text colon-delimited spe reader (e.g. 93_test.spe)"""
 
-    _FILE = "../test_data/93_test.spe"
+    _FILE = TEST_DATA / "93_test.spe"
 
     def test_validate_free_text_spe(self):
         """validate_free_text_spe_file should accept the test file"""
@@ -119,7 +122,7 @@ class read_free_text_spe_test_case(unittest.TestCase):
 
     def test_validate_rejects_dollar_spe(self):
         """validate_free_text_spe_file should reject a $ spe file"""
-        lines = gsr.read_file("../test_data/Ba_133_raised_1.Spe")
+        lines = gsr.read_file(TEST_DATA / "Ba_133_raised_1.Spe")
         with self.assertRaises(ValueError):
             gsr.validate_free_text_spe_file(lines)
 
