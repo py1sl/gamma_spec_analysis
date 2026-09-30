@@ -16,7 +16,7 @@ one after another, enabling:
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Sequence, Tuple
+from typing import List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -159,7 +159,11 @@ def track_peak_activity(
     energy_tolerance: float = 5.0,
     bg_method: BackgroundMethod = BackgroundMethod.TRAPEZOID,
     roi_offset: int = 10,
-) -> Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]]:
+    return_uncertainties: bool = False,
+) -> Union[
+    Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64]],
+    Tuple[npt.NDArray[np.float64], npt.NDArray[np.float64], npt.NDArray[np.float64]],
+]:
     """Track a peak across a series of spectra and return count rates.
 
     For each spectrum the function:
@@ -168,6 +172,8 @@ def track_peak_activity(
        calibration coefficients.
     2. Extracts a region-of-interest (ROI) around that channel.
     3. Computes the net count rate as ``net_counts / live_time``.
+    4. When *return_uncertainties* is true, propagates Poisson and background
+       uncertainty to the count rate using the raw spectrum counts.
 
     Parameters
     ----------
@@ -186,6 +192,11 @@ def track_peak_activity(
     roi_offset:
         Half-width (channels) of the ROI extracted around the peak.
         Default is ``10``.
+    return_uncertainties:
+        If true, return ``(elapsed_times, count_rates, rate_uncertainties)``.
+        Uncertainty values are one sigma in counts / second. A ``NaN`` is
+        returned where the peak could not be located. Defaults to false,
+        preserving the two-array return value.
 
     Returns
     -------
@@ -195,6 +206,10 @@ def track_peak_activity(
         Net count rate (counts / second) for the peak in each spectrum.
         A ``NaN`` entry indicates that the peak could not be located or the
         count rate could not be computed for that spectrum.
+    rate_uncertainties : numpy.ndarray of float64, optional
+        Returned only when *return_uncertainties* is true. One-sigma
+        uncertainty on each count rate, propagated from Poisson counting
+        statistics and the selected background estimate.
 
     Raises
     ------
@@ -220,6 +235,7 @@ def track_peak_activity(
 
     elapsed_times = get_elapsed_times(spectra)
     count_rates = np.full(len(spectra), np.nan, dtype=np.float64)
+    rate_uncertainties = np.full(len(spectra), np.nan, dtype=np.float64)
 
     for idx, spec in enumerate(spectra):
         try:
@@ -256,18 +272,33 @@ def track_peak_activity(
 
         count_rates[idx] = nc / float(spec.live_time)  # type: ignore[arg-type]
 
+        if return_uncertainties:
+            try:
+                _, net_uncertainty = gs_analysis.net_counts_uncertainty(
+                    spec.counts, c1, c2, m=bg_method
+                )
+            except Exception:
+                count_rates[idx] = np.nan
+                continue
+            rate_uncertainties[idx] = net_uncertainty / float(spec.live_time)
+
+    if return_uncertainties:
+        return elapsed_times, count_rates, rate_uncertainties
     return elapsed_times, count_rates
 
 
 def estimate_half_life(
     elapsed_times: npt.NDArray[np.float64],
     count_rates: npt.NDArray[np.float64],
+    count_rate_uncertainties: Optional[npt.NDArray[np.float64]] = None,
 ) -> Tuple[float, float]:
     """Estimate the half-life from a series of count rates.
 
     Fits the model ``A(t) = A0 * exp(-λ * t)`` to the supplied data and
     returns the half-life together with its uncertainty derived from the
-    covariance matrix of the fit.
+    covariance matrix of the fit. If *count_rate_uncertainties* are provided,
+    their values are used as one-sigma weights and the covariance is scaled
+    absolutely rather than estimated from residuals.
 
     Only data points where ``count_rates > 0`` and ``elapsed_times >= 0`` are
     used; ``NaN`` and non-positive values are silently dropped.
@@ -280,6 +311,11 @@ def estimate_half_life(
     count_rates:
         Net count rate (counts / second) at each time point.  Normally
         obtained from :func:`track_peak_activity`.
+    count_rate_uncertainties:
+        Optional one-sigma uncertainties for each count rate, such as the
+        third array returned by :func:`track_peak_activity` when
+        ``return_uncertainties=True``. Invalid or non-positive uncertainties
+        are excluded along with invalid count rates.
 
     Returns
     -------
@@ -294,6 +330,9 @@ def estimate_half_life(
     ValueError
         If the arrays have different lengths.
     ValueError
+        If *count_rate_uncertainties* does not have the same length as the
+        other arrays.
+    ValueError
         If fewer than two valid (positive, finite) data points remain after
         filtering.
     RuntimeError
@@ -305,12 +344,27 @@ def estimate_half_life(
     if elapsed_times.shape != count_rates.shape:
         raise ValueError("elapsed_times and count_rates must have the same length")
 
+    if count_rate_uncertainties is not None:
+        count_rate_uncertainties = np.asarray(
+            count_rate_uncertainties, dtype=np.float64
+        )
+        if count_rate_uncertainties.shape != count_rates.shape:
+            raise ValueError(
+                "count_rate_uncertainties must have the same length as "
+                "elapsed_times and count_rates"
+            )
+
     valid = (
         np.isfinite(count_rates)
         & (count_rates > 0)
         & np.isfinite(elapsed_times)
         & (elapsed_times >= 0)
     )
+    if count_rate_uncertainties is not None:
+        valid &= (
+            np.isfinite(count_rate_uncertainties)
+            & (count_rate_uncertainties > 0)
+        )
     t_fit = elapsed_times[valid]
     a_fit = count_rates[valid]
 
@@ -329,6 +383,12 @@ def estimate_half_life(
     else:
         lam_guess = 1e-5
 
+    fit_kwargs = {}
+    if count_rate_uncertainties is not None:
+        fit_kwargs = {
+            "sigma": count_rate_uncertainties[valid],
+            "absolute_sigma": True,
+        }
     popt, pcov = curve_fit(
         _exponential_decay,
         t_fit,
@@ -336,6 +396,7 @@ def estimate_half_life(
         p0=[a0_guess, lam_guess],
         bounds=([0, 0], [np.inf, np.inf]),
         maxfev=10000,
+        **fit_kwargs,
     )
 
     lam = popt[1]
