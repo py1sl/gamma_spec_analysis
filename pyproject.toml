@@ -23,9 +23,8 @@ dev = [
 ]
 
 [tool.setuptools]
-# Install each source file as a top-level importable module so that the
-# existing bare-name imports (e.g. `import gs_analysis`) continue to work
-# after `pip install .` or `pip install -e .`.
+# Keep the existing top-level module imports while storing source files in src/.
+package-dir = {"" = "src"}
 py-modules = [
     "gs_analysis",
     "gs_background",
@@ -38,3 +37,7 @@ py-modules = [
     "gs_spe_writer",
     "ph_spectrum",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]

@@ -23,10 +23,10 @@ pip install .
 ### Legacy / no-packaging install
 
 If you prefer not to install the package you can still run the code by adding
-the repository root to your Python path:
+the `src/` directory to your Python path:
 
 ```bash
-export PYTHONPATH=/path/to/gamma_spec_analysis:$PYTHONPATH
+export PYTHONPATH=/path/to/gamma_spec_analysis/src:$PYTHONPATH
 ```
 
 ## Dependencies
@@ -59,12 +59,11 @@ Development / test extras (`pip install -e ".[dev]"`):
 ## Running the tests
 
 ```bash
-cd tests
-pytest --cov=.. --cov-report=term-missing
+pytest --cov=src --cov-report=term-missing
 ```
 
-All test data lives in `test_data/`; the tests use relative paths so they must
-be run from inside the `tests/` directory.
+All test data lives in `test_data/`, and pytest can be run from the repository
+root.
 
 ## Examples
 
@@ -73,5 +72,5 @@ Jupyter notebooks with worked examples are in the `examples/` directory:
 * `examples/gs_creator_co60_example.ipynb` – creating a synthetic Co-60 spectrum
 * `examples/peak_find_example.ipynb` – automated peak finding
 
-The `test_spec_analysis.ipynb` notebook in the root shows an end-to-end
-analysis workflow.
+The notebooks add `src/` to the Python path when run from the `examples/`
+directory.
