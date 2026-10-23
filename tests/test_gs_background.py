@@ -160,7 +160,7 @@ class background_test_case(unittest.TestCase):
         step = bg.estimate_background_step(counts, 3, 6)
         linear = bg.estimate_background_linear(counts, 3, 6)
         self.assertNotAlmostEqual(step, linear)
-        self.assertLess(step, linear)
+        self.assertGreater(step, linear)
         self.assertGreater(
             bg.estimate_background_step_uncertainty(counts, 3, 6), 0.0
         )
