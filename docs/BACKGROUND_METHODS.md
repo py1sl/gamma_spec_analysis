@@ -4,7 +4,7 @@ This document describes the background subtraction methods available in `gs_anal
 
 ## Overview
 
-Background subtraction is a critical step in gamma spectroscopy analysis to accurately determine the net counts in a peak region. The `calc_bg()` function supports multiple methods for estimating the background under a peak, each with different characteristics suitable for various scenarios.
+Background subtraction is an important step in gamma spec analysis to accurately determine the net counts in a peak region. The `calc_bg()` function supports multiple methods for estimating the background under a peak, each with different characteristics suitable for various scenarios.
 
 ## Available Methods
 
@@ -28,7 +28,6 @@ bg = (low_sum + high_sum) * ((c2 - c1 + 1) / 6)
 **Best for:**
 - Standard peak analysis
 - Spectra with flat or slowly varying backgrounds
-- When compatibility with Maestro software is desired
 
 ### Method 2: Linear Interpolation
 
@@ -203,11 +202,4 @@ All methods are computationally efficient:
 - Knoll, G. F. "Radiation Detection and Measurement" - Chapter on Gamma Spectroscopy
 - Gilmore, G. "Practical Gamma-ray Spectrometry" - Background subtraction techniques
 
-## See Also
 
-- `calc_bg()` - Main background calculation function
-- `net_counts()` - Calculate net counts with background subtraction
-- `estimate_background_trapezoid()` - Direct trapezoid method
-- `estimate_background_linear()` - Direct linear method
-- `estimate_background_step()` - Direct step method
-- `estimate_background_sliding_average()` - Direct sliding window method

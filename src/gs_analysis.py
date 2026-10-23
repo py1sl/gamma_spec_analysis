@@ -299,6 +299,7 @@ def peak_counts(
     index: int,
     smooth_counts: npt.NDArray[Any],
     ebins: npt.NDArray[Any],
+    m: int = 1,
 ) -> Tuple[int, float]:
     """Index is the peak array index for the peak that counts is required for
     i.e [0], NOT the peak index itself i.e [3210]
@@ -312,13 +313,30 @@ def peak_counts(
     (start,) = np.where(ebins == start_pos)
     (end,) = np.where(ebins == end_pos)
 
-    counts = net_counts(smooth_counts, start[0], end[0], m=1)
+    counts = net_counts(smooth_counts, start[0], end[0], m=m)
 
     return (peaks[index], counts)
 
 
+def prominence_from_counts(counts, window=21, factor=0.2, min_prominence=5):
+    """Calculate a channel-dependent prominence threshold based on local background.
+    """
+    counts_array = np.asarray(counts, dtype=float)
+
+    # Estimate the local background using a moving average
+    kernel = np.ones(window) / window
+    background = np.convolve(counts_array, kernel, mode='same')
+
+    # Create a channel-dependent prominence threshold
+    prominence = np.maximum(
+        min_prominence,
+        factor * background
+    )
+    return prominence
+
+
 def peak_finder(
-    counts: npt.NDArray[Any], prominence: float, wlen: int
+    counts: npt.NDArray[Any], prominence: Any, wlen: int
 ) -> Tuple[npt.NDArray[Any], npt.NDArray[Any]]:
     """Identifies the peaks and returns their index"""
     sf = five_point_smooth(counts)
@@ -405,6 +423,33 @@ def mariscotti_peak_finder(
 
     return (smoothed, peaks)
 
+def dead_time_correction(counts, dead_time, live_time, method="standard"):
+    """
+    Apply dead time correction to the input spectrum.
+
+    Parameters
+    ----------
+    counts : array-like
+        The input spectrum counts.
+    dead_time : float
+        The dead time of the detector in seconds.
+    live_time : float
+        The live time of the measurement in seconds.
+    method : str, optional
+        The dead time correction method to use. Currently only "standard" is supported.
+
+    Returns
+    -------
+    numpy array
+        The dead time corrected spectrum.
+    """
+    counts_array = np.array(counts)
+    if method == "standard":
+        correction_factor = live_time / (live_time - dead_time * counts_array)
+        corrected_counts = counts_array * correction_factor
+        return corrected_counts
+    else:
+        raise ValueError(f"Unsupported dead time correction method: {method}")
 
 if __name__ == "__main__":
     pass

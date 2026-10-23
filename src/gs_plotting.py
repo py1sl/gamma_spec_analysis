@@ -71,6 +71,7 @@ def plot_spect_peaks(
     xlabel: str = "Energy",
     ylabel: str = "Counts",
     yscale: str = "log",
+    prominence: Any = None,
 ) -> Axes:
     """Plot a smoothed spectrum and highlight detected peaks.
 
@@ -95,6 +96,8 @@ def plot_spect_peaks(
         y-axis label.  Default ``"Counts"``.
     yscale : str, optional
         y-axis scale (``"log"`` or ``"linear"``).  Default ``"log"``.
+    prominence : Any, optional
+        Prominence value or array for highlighting peaks.  Default ``None``.
 
     Returns
     -------
@@ -102,6 +105,8 @@ def plot_spect_peaks(
     """
     ax, created = _make_ax(ax)
     ax.plot(ebins, smooth_counts)
+    if prominence is not None:
+        ax.plot(ebins, prominence, "g--")
     for peak in peaks:
         ax.plot(ebins[peak], smooth_counts[peak], "xr")
     ax.set_xlabel(xlabel)
