@@ -146,6 +146,25 @@ class background_test_case(unittest.TestCase):
         unc = bg.estimate_background_step_uncertainty(counts, 3, 7)
         self.assertGreaterEqual(unc, 0.0)
 
+    def test_step_equals_linear_on_flat_background(self):
+        """With equal edge averages the step method reduces to linear."""
+        counts = np.array([10, 10, 10, 50, 100, 50, 10, 10, 10], dtype=float)
+        self.assertAlmostEqual(
+            bg.estimate_background_step(counts, 3, 6),
+            bg.estimate_background_linear(counts, 3, 6),
+        )
+
+    def test_step_differs_from_linear_on_sloped_background(self):
+        """On a continuum step the step method is not the linear method."""
+        counts = np.array([40, 40, 40, 60, 200, 60, 10, 10, 10], dtype=float)
+        step = bg.estimate_background_step(counts, 3, 6)
+        linear = bg.estimate_background_linear(counts, 3, 6)
+        self.assertNotAlmostEqual(step, linear)
+        self.assertLess(step, linear)
+        self.assertGreater(
+            bg.estimate_background_step_uncertainty(counts, 3, 6), 0.0
+        )
+
     def test_estimate_background_sliding_average_uncertainty(self):
         """Sliding-average background uncertainty must be non-negative."""
         counts = np.array([5, 4, 6, 50, 100, 80, 50, 5, 4, 6], dtype=float)
