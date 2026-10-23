@@ -56,23 +56,23 @@ bg = (low_avg + high_avg) * width / 2
 **Usage:** `calc_bg(counts, c1, c2, m=3)`
 
 **Description:**
-The step function method calculates the average of the background regions on both sides of the peak and uses this constant value as the background level under the entire peak region.
+The step function method models the continuum step under a photopeak. The background in each channel moves from the low-side edge average to the high-side edge average in proportion to the fraction of net peak area below that channel. The fraction depends on the background, so it is iterated.
 
 ```
-avg_bg = (low_avg + high_avg) / 2
-bg = avg_bg * width
+B(i) = low_avg + (high_avg - low_avg) * F(i)
+F(i) = cumulative net counts up to i / total net counts
+bg = sum(B(i))
 ```
 
 **Characteristics:**
-- Assumes constant background level
-- Simple averaging approach
-- Robust to local fluctuations
-- Symmetric treatment of edges
+- Background follows the shape of the peak (S-shaped step)
+- Equals Linear when both edges have the same average
+- Differs from Linear on sloping continua (lower when the continuum falls)
+- Uncertainty is propagated numerically
 
 **Best for:**
-- Peaks on flat backgrounds
-- When you want a conservative background estimate
-- Low-statistics spectra where averaging helps
+- Peaks on a continuum that is higher on the low-energy side
+- Photopeaks with significant Compton step
 
 ### Method 4: Sliding Window Average
 
@@ -150,6 +150,16 @@ Run it with:
 python examples/examples_background_subtraction.py
 ```
 
+## Choosing the Right Method
+
+| Scenario | Recommended Method |
+|----------|-------------------|
+| Standard analysis, flat background | Method 1 (Trapezoid) |
+| Sloping background | Method 2 (Linear) |
+| Continuum step under the peak | Method 3 (Step) |
+| Noisy spectrum, high variability | Method 4 (Sliding) |
+| Compatibility with Maestro | Method 1 (Trapezoid) |
+
 ## Method Comparison
 
 Here's a visual comparison of all four methods applied to the same peak:
@@ -158,7 +168,7 @@ Here's a visual comparison of all four methods applied to the same peak:
 
 In this example:
 - **Trapezoid** gives the lowest background estimate (3507.0 counts)
-- **Linear and Step** give identical results for symmetric peaks (5010.0 counts)
+- **Linear** gives 5010.0 counts; **Step** equals it only when both edge averages match
 - **Sliding Window** provides an intermediate estimate (4126.0 counts)
 
 ## Technical Details

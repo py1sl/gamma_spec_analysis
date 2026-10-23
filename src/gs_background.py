@@ -18,7 +18,7 @@ class BackgroundMethod(IntEnum):
     LINEAR = 2
     """Linear interpolation method."""
     STEP = 3
-    """Step function method (average of edges)."""
+    """Iterated step function (Sterlinski-type) method."""
     SLIDING_AVERAGE = 4
     """Sliding window average method."""
 
@@ -110,12 +110,48 @@ def estimate_background_linear(counts: npt.NDArray[Any], c1: int, c2: int) -> fl
     return float(bg)
 
 
-def estimate_background_step(counts: npt.NDArray[Any], c1: int, c2: int) -> float:
-    """Estimate background using a step function (average of edges).
+def _step_background_from_window(
+    low_avg: float, high_avg: float, roi: npt.NDArray[Any], iterations: int = 5
+) -> float:
+    """Sum of the iterated step (Sterlinski-type) background over the ROI."""
+    width = len(roi)
+    if width == 0:
+        return 0.0
+    bg_chan = np.full(width, (low_avg + high_avg) / 2.0)
+    for _ in range(iterations):
+        net = roi - bg_chan
+        total = float(np.sum(net))
+        if total <= 0.0:
+            break
+        # Fraction of net peak area below each channel (channel centre)
+        frac = np.clip((np.cumsum(net) - net / 2.0) / total, 0.0, 1.0)
+        bg_chan = low_avg + (high_avg - low_avg) * frac
+    return float(np.sum(bg_chan))
 
-    This method calculates the average of the background regions on both
-    sides of the peak and uses this constant value as the background level
-    under the peak.
+
+def _edge_averages(counts: npt.NDArray[Any], c1: int, c2: int) -> tuple[float, float]:
+    """Mean counts of up to two channels either side of the ROI."""
+    low = counts[max(0, c1 - 2) : c1]
+    high = counts[c2 : min(len(counts), c2 + 2)]
+    low_avg = float(np.mean(low)) if len(low) > 0 else 0.0
+    high_avg = float(np.mean(high)) if len(high) > 0 else 0.0
+    return low_avg, high_avg
+
+
+def estimate_background_step(counts: npt.NDArray[Any], c1: int, c2: int) -> float:
+    """Estimate background using an iterated step function.
+
+    The background under each channel steps from the low-side edge average
+    to the high-side edge average in proportion to the fraction of net peak
+    area at lower channels, reflecting the continuum step produced by
+    scattering of photons in the peak:
+
+        B(i) = low_avg + (high_avg - low_avg) * F(i)
+        F(i) = (cumulative net counts up to i) / (total net counts)
+
+    F depends on the background, so it is iterated (starting from a flat
+    background at the mean of the edges). For equal edge averages the result
+    equals the linear method; otherwise it differs.
 
     Note: The peak region is defined by Python slicing convention [c1:c2),
     meaning c1 is inclusive and c2 is exclusive, giving width = c2 - c1.
@@ -135,23 +171,9 @@ def estimate_background_step(counts: npt.NDArray[Any], c1: int, c2: int) -> floa
         Estimated background counts under the peak
     """
     check_channel_validity(c1, c2, counts)
-
-    # Use two channels on each side
-    low_start = max(0, c1 - 2)
-    low_count = len(counts[low_start:c1])
-    low_avg = float(np.mean(counts[low_start:c1])) if low_count > 0 else 0.0
-
-    high_end = min(len(counts), c2 + 2)
-    high_count = len(counts[c2:high_end])
-    high_avg = float(np.mean(counts[c2:high_end])) if high_count > 0 else 0.0
-
-    # Step function: use the average of both sides
-    avg_bg = (low_avg + high_avg) / 2.0
-    # Width matches Python slicing: c2 - c1 (c2 is exclusive)
-    width = c2 - c1
-    bg = avg_bg * width
-
-    return float(bg)
+    counts = np.asarray(counts, dtype=float)
+    low_avg, high_avg = _edge_averages(counts, c1, c2)
+    return _step_background_from_window(low_avg, high_avg, counts[c1:c2])
 
 
 def estimate_background_sliding_average(
@@ -224,7 +246,7 @@ def calc_bg(
     m is a BackgroundMethod enum selector for background calculation methods
     BackgroundMethod.TRAPEZOID is a simple trapezoid background from Maestro
     BackgroundMethod.LINEAR is a linear interpolation method
-    BackgroundMethod.STEP is a step function method (average of edges)
+    BackgroundMethod.STEP is an iterated step function method
     BackgroundMethod.SLIDING_AVERAGE is a sliding window average method
     """
 
@@ -338,14 +360,15 @@ def estimate_background_step_uncertainty(
 ) -> float:
     """Return the one-sigma uncertainty on the step-function background.
 
-    Propagates Poisson variance through
-    ``bg = ((low_avg + high_avg) / 2) * width``:
+    The step background is a non-linear function of the edge and ROI counts,
+    so Poisson variance is propagated numerically:
 
     .. math::
 
-        \\sigma_{bg} = \\frac{\\mathrm{width}}{2}
-                      \\sqrt{\\frac{\\sum n_i}{4 n_{\\text{low}}^2}
-                           + \\frac{\\sum n_j}{4 n_{\\text{high}}^2}}
+        \\sigma_{bg}^2 = \\sum_k \\left(\\frac{\\partial B}{\\partial n_k}\\right)^2 |n_k|
+
+    with the derivatives taken by central differences over the edge windows
+    and ROI channels.
 
     Parameters
     ----------
@@ -361,23 +384,24 @@ def estimate_background_step_uncertainty(
         One-sigma Poisson uncertainty on the background estimate.
     """
     check_channel_validity(c1, c2, counts)
+    arr = np.asarray(counts, dtype=float)
 
-    low_start = max(0, c1 - 2)
-    low_window = counts[low_start:c1]
-    high_end = min(len(counts), c2 + 2)
-    high_window = counts[c2:high_end]
+    start = max(0, c1 - 2)
+    end = min(len(arr), c2 + 2)
 
-    width = c2 - c1
-
-    n_low = len(low_window) if len(low_window) > 0 else 1
-    n_high = len(high_window) if len(high_window) > 0 else 1
-    # avg_bg = (low_avg + high_avg) / 2  →  var(avg_bg) = (var(low_avg) + var(high_avg)) / 4
-    var_low_avg = float(np.sum(np.abs(low_window))) / n_low**2
-    var_high_avg = float(np.sum(np.abs(high_window))) / n_high**2
-    var_avg_bg = (var_low_avg + var_high_avg) / 4.0
-
-    variance_bg = (width**2) * var_avg_bg
-    return float(np.sqrt(variance_bg))
+    variance = 0.0
+    for k in range(start, end):
+        h = 1e-3 * max(1.0, abs(arr[k]))
+        plus = arr.copy()
+        minus = arr.copy()
+        plus[k] += h
+        minus[k] -= h
+        deriv = (
+            estimate_background_step(plus, c1, c2)
+            - estimate_background_step(minus, c1, c2)
+        ) / (2.0 * h)
+        variance += deriv**2 * abs(arr[k])
+    return float(np.sqrt(variance))
 
 
 def estimate_background_sliding_average_uncertainty(
