@@ -361,7 +361,7 @@ def plot_peak_with_background(
     counts: npt.NDArray[Any],
     c1: int,
     c2: int,
-    method: BackgroundMethod = BackgroundMethod.TRAPEZOID,
+    method: Union[BackgroundMethod, str] = BackgroundMethod.TRAPEZOID,
     fname: Optional[str] = None,
     ax: Optional[Axes] = None,
     title: Optional[str] = None,
@@ -377,8 +377,9 @@ def plot_peak_with_background(
         Full spectrum counts.
     c1, c2 : int
         Start and end channel of the peak region.
-    method : BackgroundMethod, optional
-        Background estimation method.  Default
+    method : BackgroundMethod or str, optional
+        Background estimation method, either a ``BackgroundMethod`` member
+        or its case-insensitive name (for example, ``"linear"``). Default
         ``BackgroundMethod.TRAPEZOID``.
     fname : str, optional
         File path to save the figure.
@@ -399,6 +400,12 @@ def plot_peak_with_background(
     -------
     matplotlib.axes.Axes
     """
+    if isinstance(method, str):
+        try:
+            method = BackgroundMethod[method.upper()]
+        except KeyError as exc:
+            raise ValueError(f"Unknown background method: {method!r}") from exc
+
     counts = np.asarray(counts)
     ax, created = _make_ax(ax)
     x = np.arange(len(counts))

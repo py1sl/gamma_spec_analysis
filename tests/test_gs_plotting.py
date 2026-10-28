@@ -234,6 +234,19 @@ class TestNewPlottingFunctions(unittest.TestCase):
                 )
             self.assertIsInstance(ax, Axes)
 
+    def test_plot_peak_with_background_method_name(self):
+        with patch("matplotlib.pyplot.show"):
+            ax = gsp.plot_peak_with_background(
+                self.counts, self.c1, self.c2, method="linear"
+            )
+        self.assertTrue(ax.get_title().startswith("Linear Interpolation"))
+
+    def test_plot_peak_with_background_invalid_method_name(self):
+        with self.assertRaisesRegex(ValueError, "Unknown background method"):
+            gsp.plot_peak_with_background(
+                self.counts, self.c1, self.c2, method="unknown"
+            )
+
     def test_plot_peak_with_background_custom_title(self):
         with patch("matplotlib.pyplot.show"):
             ax = gsp.plot_peak_with_background(
