@@ -143,6 +143,14 @@ class TestSub(unittest.TestCase):
         s2 = _make_spectrum(n=16, count_val=20)
         self.assertEqual((s1 - s2).counts.dtype, np.int64)
 
+    def test_float_counts_are_preserved(self):
+        spectrum = PhSpectrum(counts=[1.5, 2.25])
+        other = PhSpectrum(counts=[0.25, 0.75])
+        self.assertEqual(spectrum.counts.dtype, np.float64)
+        np.testing.assert_array_equal(spectrum.counts, [1.5, 2.25])
+        np.testing.assert_array_equal((spectrum + other).counts, [1.75, 3.0])
+        np.testing.assert_array_equal((spectrum - other).counts, [1.25, 1.5])
+
     def test_live_time_from_left_operand(self):
         s1 = _make_spectrum(n=8, live_time=300.0)
         s2 = _make_spectrum(n=8, live_time=600.0)
@@ -243,6 +251,60 @@ class TestNormaliseToLivetime(unittest.TestCase):
         spec = _make_spectrum(n=4, count_val=100, live_time=50.0)
         _ = spec.normalise_to_livetime()
         np.testing.assert_array_equal(spec.counts, np.full(4, 100, dtype=np.int64))
+
+
+class TestSubtractBackground(unittest.TestCase):
+
+    def test_scales_background_to_sample_live_time(self):
+        sample = _make_spectrum(n=3, count_val=100, live_time=200.0)
+        background = _make_spectrum(n=3, count_val=20, live_time=100.0)
+
+        result = gs.subtract_background(sample, background)
+
+        np.testing.assert_array_equal(result.counts, [60.0, 60.0, 60.0])
+        self.assertEqual(result.live_time, sample.live_time)
+
+    def test_preserves_fractional_scaled_counts(self):
+        sample = _make_spectrum(n=2, count_val=10, live_time=1.0)
+        background = _make_spectrum(n=2, count_val=3, live_time=2.0)
+
+        result = gs.subtract_background(sample, background)
+
+        np.testing.assert_array_equal(result.counts, [8.5, 8.5])
+        self.assertEqual(result.counts.dtype, np.float64)
+
+    def test_preserves_sample_metadata_without_mutating_inputs(self):
+        sample = _make_spectrum(
+            n=3, live_time=200.0, start_chan_num=4, spec_name="sample"
+        )
+        background = _make_spectrum(n=3, count_val=10, live_time=100.0)
+
+        result = gs.subtract_background(sample, background)
+
+        self.assertEqual(result.spec_name, "sample")
+        self.assertEqual(result.start_chan_num, 4)
+        np.testing.assert_array_equal(sample.counts, np.full(3, 100))
+        np.testing.assert_array_equal(background.counts, np.full(3, 10))
+
+    def test_raises_for_missing_or_nonpositive_live_time(self):
+        sample = _make_spectrum(n=3)
+        background = _make_spectrum(n=3)
+        for spectrum in (sample, background):
+            for live_time in (None, 0.0, -1.0, np.inf, np.nan):
+                spectrum.live_time = live_time
+                with self.subTest(live_time=live_time):
+                    with self.assertRaises(ValueError):
+                        gs.subtract_background(sample, background)
+
+    def test_raises_for_channel_mismatch(self):
+        sample = _make_spectrum(n=3)
+        background = _make_spectrum(n=4)
+        with self.assertRaises(ValueError):
+            gs.subtract_background(sample, background)
+
+    def test_raises_for_non_spectrum_inputs(self):
+        with self.assertRaises(TypeError):
+            gs.subtract_background(None, None)
 
 
 if __name__ == "__main__":

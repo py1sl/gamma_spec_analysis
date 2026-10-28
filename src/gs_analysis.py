@@ -3,9 +3,11 @@
 gamma spectrum analysis
 """
 
+from dataclasses import replace
+from enum import IntEnum
+
 import numpy as np
 from scipy.signal import find_peaks
-from enum import IntEnum
 
 import ph_spectrum
 
@@ -93,6 +95,62 @@ def generate_ebins(spec: "ph_spectrum.PhSpectrum") -> npt.NDArray[Any]:
         exactly two coefficients.
     """
     return spec.generate_ebins()
+
+
+def subtract_background(
+    spectrum: "ph_spectrum.PhSpectrum",
+    background: "ph_spectrum.PhSpectrum",
+) -> "ph_spectrum.PhSpectrum":
+    """Subtract a background spectrum after scaling it to the sample live time.
+
+    The background counts are scaled by ``spectrum.live_time /
+    background.live_time`` before subtraction. The returned spectrum retains
+    the sample metadata; its counts are floating point so fractional scaled
+    counts are preserved.
+
+    Parameters
+    ----------
+    spectrum:
+        The sample spectrum to subtract the background from.
+    background:
+        The background spectrum, scaled to the sample's live time.
+
+    Returns
+    -------
+    ph_spectrum.PhSpectrum
+        A new spectrum with live-time-corrected background counts subtracted.
+
+    Raises
+    ------
+    TypeError
+        If either argument is not a :class:`ph_spectrum.PhSpectrum`.
+    ValueError
+        If the spectra have different channel counts, or either live time is
+        missing, non-finite, or not positive.
+    """
+    if not isinstance(spectrum, ph_spectrum.PhSpectrum):
+        raise TypeError("spectrum must be a PhSpectrum")
+    if not isinstance(background, ph_spectrum.PhSpectrum):
+        raise TypeError("background must be a PhSpectrum")
+    if spectrum.counts.size != background.counts.size:
+        raise ValueError(
+            "Cannot subtract spectra with different channel counts: "
+            f"{spectrum.counts.size} vs {background.counts.size}"
+        )
+
+    live_times = (spectrum.live_time, background.live_time)
+    if any(
+        live_time is None or not np.isfinite(live_time) or live_time <= 0.0
+        for live_time in live_times
+    ):
+        raise ValueError("Both spectra must have a finite, positive live_time")
+
+    scale = spectrum.live_time / background.live_time
+    net_counts = (
+        np.asarray(spectrum.counts, dtype=np.float64)
+        - np.asarray(background.counts, dtype=np.float64) * scale
+    )
+    return replace(spectrum, counts=net_counts)
 
 
 def find_energy_pos(ebins: npt.NDArray[Any], erg: float) -> Optional[int]:

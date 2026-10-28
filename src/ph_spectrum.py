@@ -16,7 +16,12 @@ class PhSpectrum:
     num_channels: int = 0
     channels: List[int] = field(default_factory=list)
     ebin: Union[List[float], npt.NDArray[np.float64]] = field(default_factory=list)
-    counts: Union[List[int], npt.NDArray[np.int64]] = field(default_factory=list)
+    counts: Union[
+        List[int],
+        List[float],
+        npt.NDArray[np.int64],
+        npt.NDArray[np.float64],
+    ] = field(default_factory=list)
     live_time: Optional[float] = None
     real_time: Optional[float] = None
     file_path: str = ""
@@ -28,8 +33,13 @@ class PhSpectrum:
 
     def __post_init__(self) -> None:
         """Normalize common inputs to numpy arrays and set derived fields."""
-        # Ensure counts is a numpy array of integer type for numeric ops
-        self.counts = np.asarray(self.counts, dtype=np.int64)
+        # Keep net counts fractional; raw count inputs remain integer.
+        counts = np.asarray(self.counts)
+        self.counts = (
+            counts.astype(np.float64)
+            if counts.size > 0 and np.issubdtype(counts.dtype, np.floating)
+            else counts.astype(np.int64)
+        )
 
         # Set num_channels if not provided and counts present
         if self.num_channels == 0 and self.counts.size > 0:
@@ -83,7 +93,7 @@ class PhSpectrum:
 
         Rules applied to the metadata of the result:
 
-        * **counts** – element-wise integer sum.
+        * **counts** – element-wise sum, preserving fractional values.
         * **live_time** / **real_time** – summed when both operands carry the
           value; ``None`` when either operand is missing it.
         * **start_chan_num** / **energy_fit_coefficients** /
@@ -116,10 +126,7 @@ class PhSpectrum:
                 f"{self.num_channels} vs {other.num_channels}"
             )
 
-        summed_counts = (
-            np.asarray(self.counts, dtype=np.int64)
-            + np.asarray(other.counts, dtype=np.int64)
-        )
+        summed_counts = np.asarray(self.counts) + np.asarray(other.counts)
 
         live = (
             self.live_time + other.live_time
@@ -149,14 +156,14 @@ class PhSpectrum:
         of *self* and *other*.
 
         Background subtraction is the primary use-case: the left operand is
-        the sample spectrum and the right operand is the (appropriately
-        time-normalised) background.  Because statistical fluctuations can
-        produce negative bin values the result counts are stored as **int64**
-        (signed), preserving negative values rather than clamping them.
+        the sample spectrum and the right operand is the background. Because
+        statistical fluctuations can produce negative bin values, negative
+        values are preserved rather than clamped.
 
         Rules applied to the metadata of the result:
 
-        * **counts** – element-wise integer difference (``self - other``).
+        * **counts** – element-wise difference (``self - other``), preserving
+          fractional values and negative bins.
         * **live_time** / **real_time** – taken from *self* (the sample).
         * **start_chan_num** / **energy_fit_coefficients** /
           **efficiency_fit_coefficients** / **spec_name** / **start_time** –
@@ -188,10 +195,7 @@ class PhSpectrum:
                 f"{self.num_channels} vs {other.num_channels}"
             )
 
-        diff_counts = (
-            np.asarray(self.counts, dtype=np.int64)
-            - np.asarray(other.counts, dtype=np.int64)
-        )
+        diff_counts = np.asarray(self.counts) - np.asarray(other.counts)
 
         return PhSpectrum(
             spec_name=self.spec_name,
