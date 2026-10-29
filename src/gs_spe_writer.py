@@ -32,6 +32,25 @@ def write_dollar_spe(spec: PhSpectrum, path: str) -> None:
     path:
         Destination file path.  The file is created or overwritten.
     """
+    source = getattr(spec, "_dollar_spe_source", None)
+    if source is not None:
+        snapshot = (
+            spec.spec_name,
+            spec.start_chan_num,
+            tuple(spec.counts),
+            spec.live_time,
+            spec.real_time,
+            spec.start_time,
+            tuple(spec.energy_fit_coefficients)
+            if spec.energy_fit_coefficients is not None
+            else None,
+            spec.keywords.copy(),
+        )
+        if snapshot == getattr(spec, "_dollar_spe_snapshot", None):
+            with open(path, "wb") as f:
+                f.write(source)
+            return
+
     lines: List[str] = []
 
     # --- $SPEC_ID ---

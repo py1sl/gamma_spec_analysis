@@ -2,6 +2,7 @@
 gamma spectrum analysis - spe file reading
 """
 
+import copy
 from typing import Any, Dict, List, Optional, Sequence
 from ph_spectrum import PhSpectrum
 import numpy as np
@@ -37,6 +38,8 @@ def read_dollar_spe(path: str) -> PhSpectrum:
     real_time = get_real_time(lines, keywords_map)
     energy_fit_coeffs = get_energy_fit_coefficients(lines, keywords_map)
     date = get_start_date(lines, keywords_map)
+    spec_name = get_spec_name(lines, keywords_map)
+    start_chan = get_start_channel_number(lines, keywords_map)
     mca_cal = get_mca_cal(lines, keywords_map)
     shape_cal = get_shape_cal(lines, keywords_map)
 
@@ -49,6 +52,8 @@ def read_dollar_spe(path: str) -> PhSpectrum:
 
     spec = PhSpectrum(
         counts=counts,
+        spec_name=spec_name if spec_name is not None else "",
+        start_chan_num=start_chan if start_chan is not None else 0,
         live_time=live_time,
         real_time=real_time,
         energy_fit_coefficients=energy_fit_coeffs,
@@ -57,7 +62,43 @@ def read_dollar_spe(path: str) -> PhSpectrum:
         keywords=keywords,
     )
 
+    with open(path, "rb") as source_file:
+        spec._dollar_spe_source = source_file.read()
+    spec._dollar_spe_snapshot = (
+        spec.spec_name,
+        spec.start_chan_num,
+        tuple(spec.counts),
+        spec.live_time,
+        spec.real_time,
+        spec.start_time,
+        tuple(spec.energy_fit_coefficients)
+        if spec.energy_fit_coefficients is not None
+        else None,
+        copy.deepcopy(spec.keywords),
+    )
+
     return spec
+
+
+def get_spec_name(
+    line_data: Sequence[str],
+    keywords_map: Dict[str, list],
+) -> Optional[str]:
+    """Extract the spectrum name from the $SPEC_ID section."""
+    if "$SPEC_ID" in keywords_map and keywords_map["$SPEC_ID"]:
+        return line_data[keywords_map["$SPEC_ID"][0] + 1]
+    return None
+
+
+def get_start_channel_number(
+    line_data: Sequence[str],
+    keywords_map: Dict[str, list],
+) -> Optional[int]:
+    """Extract the first channel number from the $DATA section."""
+    if "$DATA" in keywords_map and keywords_map["$DATA"]:
+        data_range = line_data[keywords_map["$DATA"][0] + 1].split()
+        return int(data_range[0])
+    return None
 
 
 def get_counts(line_data: Sequence[str], keywords_map: Dict[str, list]) -> npt.NDArray[np.int64]:

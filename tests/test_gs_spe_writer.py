@@ -91,11 +91,30 @@ class write_dollar_spe_test_case(unittest.TestCase):
         """reading and rewriting a real SPE file produces equivalent spectrum"""
         original = gsr.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
         roundtripped = self._write_and_read(original)
+        self.assertEqual(roundtripped.spec_name, original.spec_name)
+        self.assertEqual(roundtripped.start_chan_num, original.start_chan_num)
         self.assertEqual(len(roundtripped.counts), len(original.counts))
         self.assertTrue((roundtripped.counts == original.counts).all())
         self.assertEqual(roundtripped.live_time, original.live_time)
         self.assertEqual(roundtripped.real_time, original.real_time)
         self.assertEqual(roundtripped.start_time, original.start_time)
+
+    def test_roundtrip_preserves_source_file(self):
+        source = TEST_DATA / "Ba_133_raised_1.Spe"
+        spec = gsr.read_dollar_spe(source)
+        with tempfile.NamedTemporaryFile(suffix=".Spe", delete=False) as f:
+            tmp_path = f.name
+        try:
+            gsw.write_dollar_spe(spec, tmp_path)
+            self.assertEqual(Path(tmp_path).read_bytes(), source.read_bytes())
+        finally:
+            os.unlink(tmp_path)
+
+    def test_modified_spectrum_is_written_instead_of_source_copy(self):
+        spec = gsr.read_dollar_spe(TEST_DATA / "Ba_133_raised_1.Spe")
+        spec.counts[0] += 1
+        result = self._write_and_read(spec)
+        self.assertEqual(result.counts[0], spec.counts[0])
 
     def test_spec_name_in_file(self):
         """spec_name is written to $SPEC_ID section"""
