@@ -98,10 +98,21 @@ class write_dollar_spe_test_case(unittest.TestCase):
         self.assertEqual(roundtripped.live_time, original.live_time)
         self.assertEqual(roundtripped.real_time, original.real_time)
         self.assertEqual(roundtripped.start_time, original.start_time)
+        self.assertEqual(
+            list(roundtripped.energy_fit_coefficients),
+            list(original.energy_fit_coefficients),
+        )
+        self.assertEqual(roundtripped.keywords, original.keywords)
 
-    def test_roundtrip_preserves_source_file(self):
+    def test_roundtrip_matches_fixture_format(self):
         source = TEST_DATA / "Ba_133_raised_1.Spe"
         spec = gsr.read_dollar_spe(source)
+        self.assertEqual(
+            spec.keywords["spec_rem"],
+            ["DET# 3", "DETDESC# MCA_1", "AP# Maestro Version 7.01"],
+        )
+        self.assertEqual(spec.keywords["roi"][0], [154, 171])
+        self.assertEqual(spec.keywords["presets"], ["Real Time", "172800", "0"])
         with tempfile.NamedTemporaryFile(suffix=".Spe", delete=False) as f:
             tmp_path = f.name
         try:

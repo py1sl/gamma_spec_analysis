@@ -2,7 +2,6 @@
 gamma spectrum analysis - spe file reading
 """
 
-import copy
 from typing import Any, Dict, List, Optional, Sequence
 from ph_spectrum import PhSpectrum
 import numpy as np
@@ -43,12 +42,21 @@ def read_dollar_spe(path: str) -> PhSpectrum:
     mca_cal = get_mca_cal(lines, keywords_map)
     shape_cal = get_shape_cal(lines, keywords_map)
 
-    # Build keywords dictionary with optional calibration data
+    # Build keywords dictionary with calibration and additional SPE sections.
     keywords = {}
     if mca_cal is not None:
         keywords['mca_cal'] = mca_cal
     if shape_cal is not None:
         keywords['shape_cal'] = shape_cal
+    spec_rem = get_section_lines(lines, keywords_map, "$SPEC_REM")
+    if spec_rem is not None:
+        keywords['spec_rem'] = spec_rem
+    roi = get_roi(lines, keywords_map)
+    if roi is not None:
+        keywords['roi'] = roi
+    presets = get_section_lines(lines, keywords_map, "$PRESETS")
+    if presets is not None:
+        keywords['presets'] = presets
 
     spec = PhSpectrum(
         counts=counts,
@@ -62,22 +70,39 @@ def read_dollar_spe(path: str) -> PhSpectrum:
         keywords=keywords,
     )
 
-    with open(path, "rb") as source_file:
-        spec._dollar_spe_source = source_file.read()
-    spec._dollar_spe_snapshot = (
-        spec.spec_name,
-        spec.start_chan_num,
-        tuple(spec.counts),
-        spec.live_time,
-        spec.real_time,
-        spec.start_time,
-        tuple(spec.energy_fit_coefficients)
-        if spec.energy_fit_coefficients is not None
-        else None,
-        copy.deepcopy(spec.keywords),
-    )
-
     return spec
+
+
+def get_section_lines(
+    line_data: Sequence[str],
+    keywords_map: Dict[str, list],
+    section: str,
+) -> Optional[List[str]]:
+    """Return the lines in a SPE section, excluding its header."""
+    section_indices = keywords_map.get(section, [])
+    if not section_indices:
+        return None
+
+    start = section_indices[0] + 1
+    following_sections = [
+        index
+        for indices in keywords_map.values()
+        for index in indices
+        if index > start
+    ]
+    end = min(following_sections) if following_sections else len(line_data)
+    return list(line_data[start:end])
+
+
+def get_roi(
+    line_data: Sequence[str],
+    keywords_map: Dict[str, list],
+) -> Optional[List[List[int]]]:
+    """Extract ROI channel ranges from the $ROI section."""
+    section_lines = get_section_lines(line_data, keywords_map, "$ROI")
+    if section_lines is None:
+        return None
+    return [list(map(int, line.split())) for line in section_lines[1:]]
 
 
 def get_spec_name(
