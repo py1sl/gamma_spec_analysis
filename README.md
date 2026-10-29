@@ -52,7 +52,7 @@ Development / test extras (`pip install -e ".[dev]"`):
 |--------|---------|
 | `ph_spectrum` | `PhSpectrum` dataclass – the core data model |
 | `gs_spe_reading` | Read ORTEC `.Spe` / `.spe` files into `PhSpectrum` objects |
-| `gs_analysis` | Peak finding, background subtraction, efficiency fitting |
+| `gs_analysis` | Peak finding, live-time-scaled spectrum background subtraction, efficiency fitting |
 | `gs_plotting` | Matplotlib helpers for visualising spectra and fits |
 | `gs_creator` | Synthesise `PhSpectrum` objects from peak lists (useful for testing) |
 
