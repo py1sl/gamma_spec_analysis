@@ -38,6 +38,12 @@ def write_dollar_spe(spec: PhSpectrum, path: str) -> None:
     lines.append("$SPEC_ID:")
     lines.append(spec.spec_name if spec.spec_name else "")
 
+    # --- $SPEC_REM ---
+    spec_rem = spec.keywords.get("spec_rem") if spec.keywords else None
+    if spec_rem is not None:
+        lines.append("$SPEC_REM:")
+        lines.extend(spec_rem)
+
     # --- $DATE_MEA ---
     if spec.start_time is not None:
         lines.append("$DATE_MEA:")
@@ -60,18 +66,31 @@ def write_dollar_spe(spec: PhSpectrum, path: str) -> None:
     for c in counts:
         lines.append(f"{int(c):8d}")
 
+    # --- $ROI ---
+    roi = spec.keywords.get("roi") if spec.keywords else None
+    if roi is not None:
+        lines.append("$ROI:")
+        lines.append(str(len(roi)))
+        lines.extend(f"{int(start)} {int(end)}" for start, end in roi)
+
+    # --- $PRESETS ---
+    presets = spec.keywords.get("presets") if spec.keywords else None
+    if presets is not None:
+        lines.append("$PRESETS:")
+        lines.extend(presets)
+
     # --- $ENER_FIT ---
     if spec.energy_fit_coefficients is not None:
         coeffs = spec.energy_fit_coefficients
         lines.append("$ENER_FIT:")
-        lines.append(" ".join(str(c) for c in coeffs))
+        lines.append(" ".join(f"{float(c):.6f}" for c in coeffs))
 
     # --- $MCA_CAL ---
     mca_cal = spec.keywords.get("mca_cal") if spec.keywords else None
     if mca_cal is not None:
         lines.append("$MCA_CAL:")
         lines.append(str(mca_cal["order"]))
-        coeff_str = " ".join(f"{c:E}" for c in mca_cal["coefficients"])
+        coeff_str = " ".join(_format_spe_float(c) for c in mca_cal["coefficients"])
         unit = mca_cal.get("unit")
         if unit:
             coeff_str += f" {unit}"
@@ -82,7 +101,15 @@ def write_dollar_spe(spec: PhSpectrum, path: str) -> None:
     if shape_cal is not None:
         lines.append("$SHAPE_CAL:")
         lines.append(str(shape_cal["order"]))
-        lines.append(" ".join(f"{c:E}" for c in shape_cal["coefficients"]))
+        lines.append(
+            " ".join(_format_spe_float(c) for c in shape_cal["coefficients"])
+        )
 
-    with open(path, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write("\r\n".join(lines) + "\r\n")
+
+
+def _format_spe_float(value: float) -> str:
+    """Format calibration coefficients using the SPE exponent convention."""
+    mantissa, exponent = f"{value:.6E}".split("E")
+    return f"{mantissa}E{int(exponent):+04d}"

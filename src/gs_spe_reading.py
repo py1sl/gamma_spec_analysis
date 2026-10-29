@@ -37,18 +37,31 @@ def read_dollar_spe(path: str) -> PhSpectrum:
     real_time = get_real_time(lines, keywords_map)
     energy_fit_coeffs = get_energy_fit_coefficients(lines, keywords_map)
     date = get_start_date(lines, keywords_map)
+    spec_name = get_spec_name(lines, keywords_map)
+    start_chan = get_start_channel_number(lines, keywords_map)
     mca_cal = get_mca_cal(lines, keywords_map)
     shape_cal = get_shape_cal(lines, keywords_map)
 
-    # Build keywords dictionary with optional calibration data
+    # Build keywords dictionary with calibration and additional SPE sections.
     keywords = {}
     if mca_cal is not None:
         keywords['mca_cal'] = mca_cal
     if shape_cal is not None:
         keywords['shape_cal'] = shape_cal
+    spec_rem = get_section_lines(lines, keywords_map, "$SPEC_REM")
+    if spec_rem is not None:
+        keywords['spec_rem'] = spec_rem
+    roi = get_roi(lines, keywords_map)
+    if roi is not None:
+        keywords['roi'] = roi
+    presets = get_section_lines(lines, keywords_map, "$PRESETS")
+    if presets is not None:
+        keywords['presets'] = presets
 
     spec = PhSpectrum(
         counts=counts,
+        spec_name=spec_name if spec_name is not None else "",
+        start_chan_num=start_chan if start_chan is not None else 0,
         live_time=live_time,
         real_time=real_time,
         energy_fit_coefficients=energy_fit_coeffs,
@@ -58,6 +71,59 @@ def read_dollar_spe(path: str) -> PhSpectrum:
     )
 
     return spec
+
+
+def get_section_lines(
+    line_data: Sequence[str],
+    keywords_map: Dict[str, list],
+    section: str,
+) -> Optional[List[str]]:
+    """Return the lines in a SPE section, excluding its header."""
+    section_indices = keywords_map.get(section, [])
+    if not section_indices:
+        return None
+
+    start = section_indices[0] + 1
+    following_sections = [
+        index
+        for indices in keywords_map.values()
+        for index in indices
+        if index > start
+    ]
+    end = min(following_sections) if following_sections else len(line_data)
+    return list(line_data[start:end])
+
+
+def get_roi(
+    line_data: Sequence[str],
+    keywords_map: Dict[str, list],
+) -> Optional[List[List[int]]]:
+    """Extract ROI channel ranges from the $ROI section."""
+    section_lines = get_section_lines(line_data, keywords_map, "$ROI")
+    if section_lines is None:
+        return None
+    return [list(map(int, line.split())) for line in section_lines[1:]]
+
+
+def get_spec_name(
+    line_data: Sequence[str],
+    keywords_map: Dict[str, list],
+) -> Optional[str]:
+    """Extract the spectrum name from the $SPEC_ID section."""
+    if "$SPEC_ID" in keywords_map and keywords_map["$SPEC_ID"]:
+        return line_data[keywords_map["$SPEC_ID"][0] + 1]
+    return None
+
+
+def get_start_channel_number(
+    line_data: Sequence[str],
+    keywords_map: Dict[str, list],
+) -> Optional[int]:
+    """Extract the first channel number from the $DATA section."""
+    if "$DATA" in keywords_map and keywords_map["$DATA"]:
+        data_range = line_data[keywords_map["$DATA"][0] + 1].split()
+        return int(data_range[0])
+    return None
 
 
 def get_counts(line_data: Sequence[str], keywords_map: Dict[str, list]) -> npt.NDArray[np.int64]:
