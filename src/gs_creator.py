@@ -5,13 +5,30 @@ gamma spectrum creator - functions to create synthetic ph_spectrum objects
 from typing import List, Optional, Tuple, Sequence
 import numpy as np
 import numpy.typing as npt
+import pandas as pd
 from ph_spectrum import PhSpectrum
 import gs_analysis
 from gs_analysis import EfficiencyFitType
+import nuc_modelling.nuclear_data.iaea_livechart_helper as lch
 
 # Physical constants
 ELECTRON_REST_MASS_KEV = 511.0  # Electron rest mass energy in keV
 KEV_TO_MEV = 1000.0  # Conversion factor from keV to MeV
+
+def get_gamma_peaks_for_nuclide(nuclide: str) -> pd.DataFrame:
+    """Retrieve gamma peak energies and intensities for a given nuclide from the IAEA LiveChart helper.
+
+    Parameters
+    ----------
+    nuclide : str
+        Nuclide identifier (e.g., "Cs-137")
+
+    Returns
+    -------
+    pandas.DataFrame
+        Gamma peaks with ``energy`` and ``intensities`` columns
+    """
+    return lch.get_gamma_peaks(nuclide)
 
 
 def create_gaussian_peak(
@@ -21,6 +38,7 @@ def create_gaussian_peak(
     energy_per_bin: float,
     min_energy: float = 0.0,
     fwhm_factor: float = 0.02,
+    count_time: float = 1.0,
 ) -> npt.NDArray[np.int64]:
     """Create a Gaussian peak at a specific energy.
 
@@ -52,7 +70,7 @@ def create_gaussian_peak(
     sigma = fwhm / (2 * np.sqrt(2 * np.log(2)))
 
     # Generate Gaussian peak
-    peak_counts = emission_rate * np.exp(-((ebins - energy) ** 2) / (2 * sigma ** 2))
+    peak_counts = count_time * emission_rate * np.exp(-((ebins - energy) ** 2) / (2 * sigma ** 2))
 
     return peak_counts.astype(np.int64)
 
@@ -63,6 +81,7 @@ def create_compton_continuum(
     num_bins: int,
     energy_per_bin: float,
     min_energy: float = 0.0,
+    count_time: float = 1.0,
     compton_fraction: float = 0.5,
     shape_exponent: float = 2.0,
 ) -> npt.NDArray[np.float64]:
@@ -110,15 +129,57 @@ def create_compton_continuum(
     if np.any(mask):
         # Simplified continuum shape: decreasing from Compton edge to lower energies
         # Using a power law shape: Intensity ~ (E / E_compton)^shape_exponent
-        continuum[mask] = compton_fraction * emission_rate * (ebins[mask] / compton_edge) ** shape_exponent
+        continuum[mask] = count_time * compton_fraction * emission_rate * (ebins[mask] / compton_edge) ** shape_exponent
 
     return continuum
+
+def create_spectrum_from_nuclides(
+    nuclides: List[str],
+    activities: List[float],
+    num_bins: int,
+    count_time: float = 1.0,
+    energy_range: Optional[Tuple[float, float]] = None,
+    background_spectrum: Optional[PhSpectrum] = None,
+    fwhm_factor: float = 0.02,
+    spec_name: str = "synthetic_spectrum",
+    efficiency_coefficients: Optional[Sequence[float]] = None,
+    efficiency_fit_type: EfficiencyFitType = EfficiencyFitType.LOG,
+    include_compton: bool = False,
+    compton_fraction: float = 0.5,
+) -> PhSpectrum:
+    """Create a ph_spectrum object from a list of gamma peak energies and emission rates.
+    """
+    # Map nuclides to their gamma peak energies and emission rates
+    peak_energies = []
+    emission_rates = []
+    for nuclide, activity in zip(nuclides, activities):
+        gammas = get_gamma_peaks_for_nuclide(nuclide)
+        for energy, intensity in zip(gammas["energy"], gammas["intensity"]):
+            peak_energies.append(energy)
+            emission_rates.append(activity * intensity)
+
+    spectrum = create_spectrum_from_peaks(
+        peak_energies,
+        emission_rates,
+        num_bins,
+        count_time=count_time,
+        energy_range=energy_range,
+        background_spectrum=background_spectrum,
+        fwhm_factor=fwhm_factor,
+        spec_name=spec_name,
+        efficiency_coefficients=efficiency_coefficients,
+        efficiency_fit_type=efficiency_fit_type,
+        include_compton=include_compton,
+        compton_fraction=compton_fraction,
+    )
+    return spectrum
 
 
 def create_spectrum_from_peaks(
     peak_energies: List[float],
     emission_rates: List[float],
     num_bins: int,
+    count_time: float = 1.0,
     energy_range: Optional[Tuple[float, float]] = None,
     background_spectrum: Optional[PhSpectrum] = None,
     fwhm_factor: float = 0.02,
@@ -213,7 +274,7 @@ def create_spectrum_from_peaks(
 
             # Add photopeak
             peak_counts = create_gaussian_peak(
-                energy, effective_rate, num_bins, energy_per_bin, min_energy, fwhm_factor
+                energy, effective_rate, num_bins, energy_per_bin, min_energy, fwhm_factor, count_time=count_time,
             )
             counts += peak_counts
 
@@ -221,7 +282,7 @@ def create_spectrum_from_peaks(
             if include_compton:
                 compton_counts = create_compton_continuum(
                     energy, effective_rate, num_bins, energy_per_bin,
-                    min_energy, compton_fraction
+                    min_energy, compton_fraction, count_time=count_time,
                 )
                 counts += compton_counts
 

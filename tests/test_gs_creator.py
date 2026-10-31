@@ -1,5 +1,8 @@
 import unittest
+from unittest.mock import patch
+
 import numpy as np
+import pandas as pd
 import gs_creator
 from ph_spectrum import PhSpectrum
 import gs_analysis
@@ -30,6 +33,31 @@ def calculate_channel_from_energy(energy, min_energy, max_energy, num_bins):
 
 class TestGsCreator(unittest.TestCase):
     """Tests for gs_creator module functions"""
+
+    def test_create_spectrum_from_nuclides_with_gamma_dataframe(self):
+        gammas = pd.DataFrame({
+            "energy": [662.0, 1173.0],
+            "intensities": [0.85, 0.99],
+        })
+        expected_spectrum = object()
+
+        with patch.object(
+            gs_creator, "get_gamma_peaks_for_nuclide", return_value=gammas
+        ):
+            with patch.object(
+                gs_creator,
+                "create_spectrum_from_peaks",
+                return_value=expected_spectrum,
+            ) as create_spectrum:
+                result = gs_creator.create_spectrum_from_nuclides(
+                    ["Cs-137"], [100.0], num_bins=1000
+                )
+
+        self.assertIs(result, expected_spectrum)
+        self.assertEqual(
+            create_spectrum.call_args.args[:3],
+            ([662.0, 1173.0], [85.0, 99.0], 1000),
+        )
 
     def test_create_gaussian_peak_basic(self):
         """Test basic Gaussian peak creation"""
